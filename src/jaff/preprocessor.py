@@ -44,7 +44,7 @@ class Preprocessor:
         if comment == "auto":
             if fname.endswith('.cmake') or fname.endswith('CMakeLists.txt'):
                 comment = "#"
-            elif fname.endswith('.cpp') or fname.endswith('.hpp') or fname.endswith('.h') or fname.endswith('.cc'):
+            elif fname.endswith('.cpp') or fname.endswith('.hpp') or fname.endswith('.h') or fname.endswith('.cc') or fname.endswith('.H'):
                 comment = "//"
             elif fname.endswith('.f90') or fname.endswith('.f') or fname.endswith('.F90'):
                 comment = "!!"
