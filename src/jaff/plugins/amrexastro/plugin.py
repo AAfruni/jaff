@@ -70,7 +70,7 @@ Real T = state.T;
     
     # Process all files with auto-detected comment styles
     p.preprocess(path_template,
-                 ["actual_rhs.H", "actual_network_data.cpp", "actual_network.H"],
+                 ["actual_rhs.H", "actual_network_data.cpp"],
                  [{"TEMP_VARS": temp_vars, "ODE": sode,  "JACOBIAN": jacobian}, 
                   {"CHARGE": charge_code}],
                  comment="auto",
