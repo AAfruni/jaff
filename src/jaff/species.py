@@ -3,11 +3,12 @@ import sys
 
 
 class Species:
-
     # ********************
     def __init__(self, name, mass_dict, index):
-
-        if name.lower() in ["e", "eletron", "electrons", "el", "els"] or name in ["E", "E-"]:
+        if name.lower() in ["e", "eletron", "electrons", "el", "els"] or name in [
+            "E",
+            "E-",
+        ]:
             sys.exit("ERROR: electrons found with name: " + name + ". Use e- instead.")
 
         self.name = name
@@ -36,7 +37,7 @@ class Species:
     # ********************
     def parse(self, mass_dict):
         atoms = sorted(mass_dict.keys(), key=lambda x: len(x), reverse=True)
-        ps = ["".join(x) for x in itertools.product("qzxj", repeat=4)][:len(atoms)]
+        ps = ["".join(x) for x in itertools.product("qzxj", repeat=4)][: len(atoms)]
         proxy = {a: p for a, p in zip(atoms, ps)}
         proxy_rev = {p: a for a, p in proxy.items()}
 
@@ -45,7 +46,7 @@ class Species:
             pname = pname.replace(a, "$" + proxy[a] + "$")
 
         def is_number(s):
-            if s == 'x':
+            if s == "x":
                 return True
             try:
                 float(s)
@@ -60,8 +61,8 @@ class Species:
             if not is_number(p):
                 expl += [p]
             else:
-                if p != 'x':
-                    expl += [pold] * max(int(p)-1, 1)
+                if p != "x":
+                    expl += [pold] * max(int(p) - 1, 1)
             pold = p
         self.exploded = sorted([proxy_rev[x] for x in expl])
         self.mass = sum([mass_dict[x] for x in self.exploded])
@@ -98,4 +99,4 @@ class Species:
                 elif name.endswith("-"):
                     self.charge -= 1
                 name = name[:-1]
-            #self.charge = self.name.count("+") - self.name.count("-")
+            # self.charge = self.name.count("+") - self.name.count("-")

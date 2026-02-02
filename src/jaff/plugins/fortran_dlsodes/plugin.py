@@ -1,5 +1,6 @@
 import os
 
+
 def main(network, path_template, path_build=None):
     from jaff.preprocessor import Preprocessor
 
@@ -10,9 +11,10 @@ def main(network, path_template, path_build=None):
     sflux = network.get_fluxes(language="f90")
     sode = network.get_ode(derivative_variable="dn", language="f90")
 
-    p.preprocess(path_template,
-                 ["commons.f90", "ode.f90", "fluxes.f90", "reactions.f90"],
-                 [{"COMMONS": scommons}, {"ODE": sode}, {"FLUXES": sflux}, {"REACTIONS": rates}],
-                 comment="!!",
-                 path_build=path_build)
-
+    p.preprocess(
+        path_template,
+        ["commons.f90", "ode.f90", "fluxes.f90", "reactions.f90"],
+        [{"COMMONS": scommons}, {"ODE": sode}, {"FLUXES": sflux}, {"REACTIONS": rates}],
+        comment="!!",
+        path_build=path_build,
+    )

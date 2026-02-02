@@ -2,9 +2,11 @@ import numpy as np
 import sys
 import sympy
 
-class Reaction:
 
-    def __init__(self, reactants, products, rate, tmin, tmax, dE, original_string, errors=False):
+class Reaction:
+    def __init__(
+        self, reactants, products, rate, tmin, tmax, dE, original_string, errors=False
+    ):
         self.reactants = reactants
         self.products = products
         self.rate = rate
@@ -12,7 +14,9 @@ class Reaction:
         self.tmax = tmax
         self.dE = dE
         self.reaction = None
-        self.xsecs = None  # dictionary {"energy": [], "xsecs": []}, energy in erg, xsecs in cm^2
+        self.xsecs = (
+            None  # dictionary {"energy": [], "xsecs": []}, energy in erg, xsecs in cm^2
+        )
         self.original_string = original_string
         # Add verbatim property for backward compatibility
         self.verbatim = self.get_verbatim()
@@ -31,14 +35,16 @@ class Reaction:
                 rtype = "photo"
         else:
             # Check if rate is a photorates Function
-            if hasattr(self.rate, 'func') and isinstance(self.rate.func, type(Function('f'))):
-                if self.rate.func.__name__ == 'photorates':
+            if hasattr(self.rate, "func") and isinstance(
+                self.rate.func, type(Function("f"))
+            ):
+                if self.rate.func.__name__ == "photorates":
                     rtype = "photo"
-            elif self.rate.has(symbols('crate')):
+            elif self.rate.has(symbols("crate")):
                 rtype = "cosmic_ray"
-            elif self.rate.has(symbols('av')):
+            elif self.rate.has(symbols("av")):
                 rtype = "photo_av"
-            elif self.rate.has(symbols('ntot')):
+            elif self.rate.has(symbols("ntot")):
                 rtype = "3_body"
 
         return rtype
@@ -73,7 +79,6 @@ class Reaction:
         sp = "_".join(sorted([x.name for x in self.products]))
         return sr + "__" + sp
 
-
     def check(self, errors):
         if not self.check_mass():
             print("WARNING: Mass not conserved in reaction: " + self.get_verbatim())
@@ -85,28 +90,44 @@ class Reaction:
                 sys.exit(1)
 
     def check_mass(self):
-        return (np.sum([x.mass for x in self.reactants]) - np.sum([x.mass for x in self.products])) < 9.1093837e-28
+        return (
+            np.sum([x.mass for x in self.reactants])
+            - np.sum([x.mass for x in self.products])
+        ) < 9.1093837e-28
 
     def check_charge(self):
-        return (np.sum([x.charge for x in self.reactants]) - np.sum([x.charge for x in self.products])) == 0
+        return (
+            np.sum([x.charge for x in self.reactants])
+            - np.sum([x.charge for x in self.products])
+        ) == 0
 
     def get_verbatim(self):
-        return " + ".join([x.name for x in self.reactants]) + " -> " + \
-               " + ".join([x.name for x in self.products])
+        return (
+            " + ".join([x.name for x in self.reactants])
+            + " -> "
+            + " + ".join([x.name for x in self.products])
+        )
 
     def get_latex(self):
-        latex = " + ".join([x.latex for x in self.reactants]) + "\\,\\to\\," + \
-               " + ".join([x.latex for x in self.products])
+        latex = (
+            " + ".join([x.latex for x in self.reactants])
+            + "\\,\\to\\,"
+            + " + ".join([x.latex for x in self.products])
+        )
         return "$" + latex + "$"
 
-    def get_flux(self, idx=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""):
+    def get_flux(
+        self, idx=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""
+    ):
         if len(brackets) != 2:
             print("ERROR: brackets must be a string of length 2, e.g. '[]'")
             sys.exit(1)
 
         lb, rb = brackets[0], brackets[1]
 
-        flux = f"{rate_variable}{lb}{idx}{rb} * " + " * ".join([f"{species_variable}{lb}{idx_prefix+x.fidx}{rb}" for x in self.reactants])
+        flux = f"{rate_variable}{lb}{idx}{rb} * " + " * ".join(
+            [f"{species_variable}{lb}{idx_prefix + x.fidx}{rb}" for x in self.reactants]
+        )
         return flux
 
     def has_any_species(self, species):
@@ -127,18 +148,19 @@ class Reaction:
     def get_python(self):
         from sympy.printing.numpy import NumPyPrinter
         from sympy import Function
+
         if type(self.rate) is str:
             return self.rate
         # Handle photorates function specially
-        if hasattr(self.rate, 'func') and isinstance(self.rate.func, type(Function('f'))):
-            if self.rate.func.__name__ == 'photorates':
+        if hasattr(self.rate, "func") and isinstance(self.rate.func, type(Function("f"))):
+            if self.rate.func.__name__ == "photorates":
                 # Return a placeholder that will be replaced later
                 return f"photorates(#IDX#, {', '.join(str(arg) for arg in self.rate.args[1:])})"
         return NumPyPrinter().doprint(self.rate).replace("numpy.", "np.")
 
     def get_c(self):
-        return sympy.ccode(self.get_sympy(),strict=False)
-    
+        return sympy.ccode(self.get_sympy(), strict=False)
+
     def get_cpp(self):
         # Use C++ code generation
         cpp_code = sympy.cxxcode(self.get_sympy(), strict=False)
@@ -147,7 +169,7 @@ class Reaction:
         return cpp_code
 
     def get_f90(self):
-        return sympy.fcode(self.get_sympy(),strict=False)
+        return sympy.fcode(self.get_sympy(), strict=False)
 
     def get_sympy(self):
         return sympy.sympify(self.rate)
@@ -165,24 +187,24 @@ class Reaction:
         else:
             tmax = self.tmax
         tgas = np.logspace(np.log10(tmin), np.log10(tmax), 100)
-        r = sympy.lambdify('tgas', self.rate, 'numpy')
+        r = sympy.lambdify("tgas", self.rate, "numpy")
         y = np.array([r(t) for t in tgas])
 
         if ax is None:
             _, ax = plt.subplots()
 
         ax.plot(tgas, y)
-        ax.set_xlabel('Temperature (K)')
-        ax.set_ylabel('Rate')
-        ax.set_xscale('log')
-        ax.set_yscale('log')
+        ax.set_xlabel("Temperature (K)")
+        ax.set_ylabel("Rate")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
         ax.set_title(self.get_latex())
         ax.grid()
 
         if ax is None:
             plt.show()
 
-    def plot_xsecs(self, ax=None, energy_unit='eV', energy_log=True, xsecs_log=True):
+    def plot_xsecs(self, ax=None, energy_unit="eV", energy_log=True, xsecs_log=True):
         import matplotlib.pyplot as plt
         import numpy as np
 
@@ -196,34 +218,33 @@ class Reaction:
         clight = 2.99792458e10  # cm/s
         hplanck = 6.62607015e-27  # erg s
 
-        if energy_unit == 'eV':
-            energies = np.array(self.xsecs['energy']) / 1.60218e-12
-            xlabel = 'Energy (eV)'
-        elif energy_unit == 'erg':
-            energies = np.array(self.xsecs['energy'])
-            xlabel = 'Energy (erg)'
-        elif energy_unit == 'nm':
-            energies = clight * hplanck * 1e7 / np.array(self.xsecs['energy'])
-            xlabel = 'Wavelength (nm)'
-        elif energy_unit in ['um', 'micron']:
-            energies = clight * hplanck * 1e4 / np.array(self.xsecs['energy'])
-            xlabel = 'Wavelength (µm)'
+        if energy_unit == "eV":
+            energies = np.array(self.xsecs["energy"]) / 1.60218e-12
+            xlabel = "Energy (eV)"
+        elif energy_unit == "erg":
+            energies = np.array(self.xsecs["energy"])
+            xlabel = "Energy (erg)"
+        elif energy_unit == "nm":
+            energies = clight * hplanck * 1e7 / np.array(self.xsecs["energy"])
+            xlabel = "Wavelength (nm)"
+        elif energy_unit in ["um", "micron"]:
+            energies = clight * hplanck * 1e4 / np.array(self.xsecs["energy"])
+            xlabel = "Wavelength (µm)"
         else:
             print("ERROR: Unknown energy unit '%s'" % energy_unit)
             sys.exit(1)
 
-        xsecs = np.array(self.xsecs['xsecs'])
+        xsecs = np.array(self.xsecs["xsecs"])
 
         ax.plot(energies, xsecs)
         ax.set_xlabel(xlabel)
-        ax.set_ylabel('Cross section (cm^2)')
+        ax.set_ylabel("Cross section (cm^2)")
         if energy_log:
-            ax.set_xscale('log')
+            ax.set_xscale("log")
         if xsecs_log:
-            ax.set_yscale('log')
+            ax.set_yscale("log")
         ax.set_title(self.get_latex())
         ax.grid()
 
         if ax is None:
             plt.show()
-

@@ -1,4 +1,5 @@
 # JAFF
+
 (Just Another Fancy Format)
 
 An astrochemical network parser that supports multiple reaction network formats including KIDA, UDFA, PRIZMO, KROME, and UCLCHEM.
@@ -6,6 +7,7 @@ An astrochemical network parser that supports multiple reaction network formats 
 ## Installation
 
 ### From source
+
 ```bash
 git clone https://github.com/tgrassi/jaff.git
 cd jaff
@@ -13,6 +15,7 @@ pip install .
 ```
 
 ### For development
+
 ```bash
 git clone https://github.com/tgrassi/jaff.git
 cd jaff
@@ -61,26 +64,26 @@ for reaction in network.reactions:
 ## Supported Network Formats
 
 - **KIDA**: Kinetic Database for Astrochemistry format
-    Reference: [A&A, 689, A63 (2024)](https://doi.org/10.1051/0004-6361/202450606)
+  Reference: [A&A, 689, A63 (2024)](https://doi.org/10.1051/0004-6361/202450606)
 - **UDFA**: UMIST Database for Astrochemistry format
-    Reference: [A&A, 682, A109 (2024)](https://doi.org/10.1051/0004-6361/202346908)
+  Reference: [A&A, 682, A109 (2024)](https://doi.org/10.1051/0004-6361/202346908)
 - **PRIZMO**: Uses `->` separator with `VARIABLES{}` blocks
-    Reference:[MNRAS 494, 4471–4491 (2020)](https://doi.org/10.1093/mnras/staa971)
+  Reference:[MNRAS 494, 4471–4491 (2020)](https://doi.org/10.1093/mnras/staa971)
 - **KROME**: Comma-separated values with `@format:` header
-    Reference: [MNRAS 439, 2386–2419 (2014)](https://doi.org/10.1093/mnras/stu114)
-- **UCLCHEM**: Comma-separated with `,NAN,` marker (UNDER CONSTRUCTION)     
-    Reference: [J. Holdship et al 2017 AJ 154 38](https://doi.org/10.3847/1538-3881/aa773f)
+  Reference: [MNRAS 439, 2386–2419 (2014)](https://doi.org/10.1093/mnras/stu114)
+- **UCLCHEM**: Comma-separated with `,NAN,` marker (UNDER CONSTRUCTION)  
+   Reference: [J. Holdship et al 2017 AJ 154 38](https://doi.org/10.3847/1538-3881/aa773f)
 
 ## Primitive Variables
 
 The following variables are recognized in rate expressions:
 
-- `tgas`: gas temperature, K      
-- `av`: visual extinction, Draine units      
-- `crate`: cosmic rays ionization rate of H2, 1/s     
-- `ntot`: total number density, 1/cm3      
-- `hnuclei`: H nuclei number density, 1/cm3     
-- `d2g`: dust-to-gas mass ratio     
+- `tgas`: gas temperature, K
+- `av`: visual extinction, Draine units
+- `crate`: cosmic rays ionization rate of H2, 1/s
+- `ntot`: total number density, 1/cm3
+- `hnuclei`: H nuclei number density, 1/cm3
+- `d2g`: dust-to-gas mass ratio
 
 ## Examples
 
@@ -98,12 +101,13 @@ pip install -e ".[dev]"
 pytest
 
 # Format code
-black src/jaff
+ruff format
 
 # Lint code
 ruff check src/jaff
 ```
 
------------------------------
-![xkcd:927](./assets/xkcd.png)               
+---
+
+![xkcd:927](./assets/xkcd.png)  
 ![https://xkcd.com/927/](https://xkcd.com/927/)

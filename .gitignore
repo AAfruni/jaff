@@ -73,6 +73,7 @@ dmypy.json
 
 # IDEs
 .vscode/
+.zed/
 .idea/
 *.swp
 *.swo

@@ -4,6 +4,7 @@ This module contains code the parse auxiliary function files.
 
 from sympy import Function, parse_expr
 
+
 #############################################################
 def parse_error(line, fname, funcname=None):
     """
@@ -26,12 +27,15 @@ def parse_error(line, fname, funcname=None):
     """
 
     if funcname is None:
-        errstr = "file {:s}: encountered error when parsing " \
-            "line\n{:s}".format(fname, line)
+        errstr = "file {:s}: encountered error when parsing line\n{:s}".format(
+            fname, line
+        )
     else:
-        errstr = "file {:s}: encountered error in parsing "\
-             "function {:s}; unparseable line\n" \
+        errstr = (
+            "file {:s}: encountered error in parsing "
+            "function {:s}; unparseable line\n"
             "{:s}".format(fname, funcname, line)
+        )
     raise ValueError(errstr)
 
 
@@ -74,21 +78,23 @@ def parse_func_declaration(line):
     """
 
     # Make sure the line starts correctly
-    if not line.startswith("@function") and \
-        not line.startswith("@ratefunction") and \
-        not line.startswith("@deltaE") and \
-        not line.startswith("@heating_cooling_rate"):
-         raise ValueError
+    if (
+        not line.startswith("@function")
+        and not line.startswith("@ratefunction")
+        and not line.startswith("@deltaE")
+        and not line.startswith("@heating_cooling_rate")
+    ):
+        raise ValueError
 
     # Remove leading @function or @
     if line.startswith("@function"):
-        funcstring = line[len("@function"):].strip()
+        funcstring = line[len("@function") :].strip()
     else:
         funcstring = line[1:].strip()
 
     # Strip any trailing comments
     funcstring = strip_trailing_comments(funcstring)
-                    
+
     # Find leading parenthesis and extract function name
     firstparen = funcstring.find("(")
     if firstparen == -1:
@@ -101,9 +107,8 @@ def parse_func_declaration(line):
         raise ValueError
 
     # Extract list of arguments
-    funcargs = funcstring[firstparen+1:-1].split(',')
-    funcargs = [parse_expr(f.strip()) for f in funcargs
-                if len(f.strip()) > 0]
+    funcargs = funcstring[firstparen + 1 : -1].split(",")
+    funcargs = [parse_expr(f.strip()) for f in funcargs if len(f.strip()) > 0]
 
     # Return
     return funcname, funcargs
@@ -126,7 +131,7 @@ def parse_funcfile(fname):
             contains a list of Sympy.Symbols defining the
             arguments, "comments" is a string that captures any
             comments the follow the function definition,
-            and "argcomments" is a list of strings capturing 
+            and "argcomments" is a list of strings capturing
             comments on the definitions of the arguments.
 
     Raises:
@@ -145,7 +150,6 @@ def parse_funcfile(fname):
     with open(fname) as fp:
         funcname = None
         for line in fp:
-
             # Strip whitespace
             line = line.strip()
 
@@ -165,20 +169,20 @@ def parse_funcfile(fname):
 
             # Are we inside a function definition or not?
             if funcname is None:
-
                 # Not in a function definition, so all we
-                # should find are comment lines or lines that 
+                # should find are comment lines or lines that
                 # start a function declaration
-                if line[0] == '#':
-                    continue   # Comment line
-                elif line.startswith("@function") or \
-                    line.startswith("@ratefunction") or \
-                    line.startswith("@deltaE") or \
-                    line.startswith("@heating_cooling_rate"):
+                if line[0] == "#":
+                    continue  # Comment line
+                elif (
+                    line.startswith("@function")
+                    or line.startswith("@ratefunction")
+                    or line.startswith("@deltaE")
+                    or line.startswith("@heating_cooling_rate")
+                ):
                     # Function declaration line
                     try:
-                        funcname, funcargs \
-                            = parse_func_declaration(line)
+                        funcname, funcargs = parse_func_declaration(line)
                         funcarg_comments = {}
                         subst_symbols = []
                         subst_rules = []
@@ -191,20 +195,21 @@ def parse_funcfile(fname):
                         line = strip_trailing_comments(line)
 
                         # Strip the beginning @var
-                        line = line[len("@var"):].strip()
+                        line = line[len("@var") :].strip()
 
                         # Split line at first = sign
-                        splitline = line.split('=', maxsplit=1)
+                        splitline = line.split("=", maxsplit=1)
                         if len(splitline) != 2:
                             parse_error(line, fname, funcname)
 
                         # Construct global substitution rule
                         global_symbols.append(parse_expr(splitline[0]))
-                        local_dict = {str(k) : v for k, v in 
-                                      zip(global_symbols[:-1], global_rules)}
+                        local_dict = {
+                            str(k): v for k, v in zip(global_symbols[:-1], global_rules)
+                        }
                         global_rules.append(
-                            parse_expr(splitline[1],
-                                       local_dict=local_dict))
+                            parse_expr(splitline[1], local_dict=local_dict)
+                        )
                     except:
                         parse_error(line, fname, funcname)
 
@@ -212,15 +217,13 @@ def parse_funcfile(fname):
                     parse_error(line, fname)
 
             else:
-
                 # We are in a function definition; things we can find
                 # here are (1) comments explaining what variables mean,
                 # (2) substitution commands of the form x = y, (3)
                 # return commands that end a function; anythin else is
                 # an errror
 
-                if line[0] == '#':
-
+                if line[0] == "#":
                     # This is a comment line; check if the comment
                     # starts with the name of one of our variables,
                     # and if so capture the rest of the line
@@ -228,11 +231,9 @@ def parse_funcfile(fname):
                     for arg in funcargs:
                         argstr = str(arg)
                         if comment.startswith(argstr):
-                            funcarg_comments[arg] \
-                                = comment[len(argstr):].strip()
-                            
-                elif not line.startswith("return"):
+                            funcarg_comments[arg] = comment[len(argstr) :].strip()
 
+                elif not line.startswith("return"):
                     # This should be a command line, of the form x = y;
                     # we need to capture this as a sympy substitution rule,
                     # which we will apply to the final function
@@ -241,21 +242,21 @@ def parse_funcfile(fname):
                     line = strip_trailing_comments(line)
 
                     # Split line at first = sign
-                    splitline = line.split('=', maxsplit=1)
+                    splitline = line.split("=", maxsplit=1)
                     if len(splitline) != 2:
                         parse_error(line, fname, funcname)
                     try:
                         subst_symbols.append(parse_expr(splitline[0]))
-                        local_dict = {str(k) : v for k, v in 
-                                      zip(subst_symbols[:-1], subst_rules)}
+                        local_dict = {
+                            str(k): v for k, v in zip(subst_symbols[:-1], subst_rules)
+                        }
                         subst_rules.append(
-                            parse_expr(splitline[1],
-                                       local_dict=local_dict))
+                            parse_expr(splitline[1], local_dict=local_dict)
+                        )
                     except:
                         parse_error(line, fname, funcname)
-                    
-                else:
 
+                else:
                     # This should be a return line, of the form return xxx;
                     # we need to capture the content of the function, apply
                     # any substitution rules we have to it, and then add
@@ -266,9 +267,12 @@ def parse_funcfile(fname):
                     line = strip_trailing_comments(line)
 
                     # Construct function definition
-                    funcdef = parse_expr(line[len("return"):].strip(),
-                                         local_dict={str(k) : v for k, v in 
-                                                     zip(subst_symbols, subst_rules)})
+                    funcdef = parse_expr(
+                        line[len("return") :].strip(),
+                        local_dict={
+                            str(k): v for k, v in zip(subst_symbols, subst_rules)
+                        },
+                    )
 
                     # Apply substitution rules, starting from final one and
                     # working backwards
@@ -277,13 +281,13 @@ def parse_funcfile(fname):
 
                     # Substitute in global variables
                     for ss, sr in zip(global_symbols[::-1], global_rules[::-1]):
-                        funcdef = funcdef.subs(ss, sr)                    
+                        funcdef = funcdef.subs(ss, sr)
 
                     # Record final results
-                    funcs[funcname.lower()] = { 
-                        "def" : funcdef, 
-                        "args" : funcargs,
-                        "argcomments" : funcarg_comments
+                    funcs[funcname.lower()] = {
+                        "def": funcdef,
+                        "args": funcargs,
+                        "argcomments": funcarg_comments,
                     }
 
                     # Reset state

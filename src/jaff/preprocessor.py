@@ -10,7 +10,9 @@ class Preprocessor:
     # **********************************
     # loop on the files in the fnames list and replace the pragmas from the dictionaries
     # this also copies all the files that are not in the fnames list but are in the path
-    def preprocess(self, path, fnames, dictionaries, comment="!!", add_header=True, path_build=None):
+    def preprocess(
+        self, path, fnames, dictionaries, comment="!!", add_header=True, path_build=None
+    ):
         if type(fnames) is str:
             fnames = [fnames]
 
@@ -25,7 +27,13 @@ class Preprocessor:
 
         # preprocess the files in the fnames list first
         for fname, dictionary in zip(fnames, dictionaries):
-            self.preprocess_file(os.path.join(path, fname), dictionary, comment=comment, add_header=add_header, path_build=path_build)
+            self.preprocess_file(
+                os.path.join(path, fname),
+                dictionary,
+                comment=comment,
+                add_header=add_header,
+                path_build=path_build,
+            )
 
         # copy files that are not in the fnames list
         for fname in glob(os.path.join(path, "*")):
@@ -38,17 +46,18 @@ class Preprocessor:
     # preprocess a single file replacing the pragmas with the values from the dictionary
     # this also adds a header to the file
     # comment is the string that starts the pragma
-    def preprocess_file(self, fname, dictionary, comment="!!", add_header=True, path_build=None):
-        
+    def preprocess_file(
+        self, fname, dictionary, comment="!!", add_header=True, path_build=None
+    ):
         # Auto-detect comment style based on file extension if not explicitly set
         if comment == "auto":
-            if fname.endswith('.cmake') or fname.endswith('CMakeLists.txt'):
+            if fname.endswith(".cmake") or fname.endswith("CMakeLists.txt"):
                 comment = "#"
             elif fname.endswith('.cpp') or fname.endswith('.hpp') or fname.endswith('.h') or fname.endswith('.cc') or fname.endswith('.H'):
                 comment = "//"
-            elif fname.endswith('.f90') or fname.endswith('.f') or fname.endswith('.F90'):
+            elif fname.endswith(".f90") or fname.endswith(".f") or fname.endswith(".F90"):
                 comment = "!!"
-            elif fname.endswith('.py'):
+            elif fname.endswith(".py"):
                 comment = "#"
             # else keep the default
 
@@ -72,9 +81,15 @@ class Preprocessor:
                 in_pragma = True
                 pragma = dictionary[srow.replace(full_pragma, "")]
                 indent = " " * nspace
-                this_pragma = row + "\n" + indent + pragma.replace("\n", "\n" + indent).rstrip() + "\n\n"
+                this_pragma = (
+                    row
+                    + "\n"
+                    + indent
+                    + pragma.replace("\n", "\n" + indent).rstrip()
+                    + "\n\n"
+                )
                 # this removes the indent in the fortran pragmas (fpp)
-                out += this_pragma #"\n".join([x.lstrip() if is_fpp(x) else x for x in this_pragma.split("\n")])
+                out += this_pragma  # "\n".join([x.lstrip() if is_fpp(x) else x for x in this_pragma.split("\n")])
                 continue
 
             if srow == full_pragma + "END":

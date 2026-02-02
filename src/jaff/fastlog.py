@@ -7,6 +7,7 @@ This module implements fast log utility functions. The code here is heavily borr
 import numpy as np
 from scipy.optimize import root_scalar
 
+
 def fast_log2(x):
     """
     Fast approximation of log2(x) using the not-quite-logarithmic method.
@@ -43,6 +44,7 @@ def fast_log2(x):
     else:
         return res
 
+
 def inverse_fast_log2(y):
     """
     Compute the numerical inverse of fast_log2 to machine precision
@@ -67,22 +69,23 @@ def inverse_fast_log2(y):
 
     # Loop over input values
     for i, y_ in enumerate(y_arr):
-            
         # Set initial guess to inverse of exact log_2(x) function
-        x_guess = 2.0 ** y_
+        x_guess = 2.0**y_
 
         # Bracket the root by factors of 2 on either side; bracketing is
         # guaranteed to be safe because fast_log2 is monotonic
         x_bracket = np.array([0.5, 2]) * x_guess
 
         # Search for root using Brent's method
-        root = root_scalar(lambda x : fast_log2(x) - y_,
-                           method='brentq',
-                           bracket=x_bracket,
-                           xtol=eps*x_guess,
-                           rtol=4*eps,
-                           maxiter=1000)
-        
+        root = root_scalar(
+            lambda x: fast_log2(x) - y_,
+            method="brentq",
+            bracket=x_bracket,
+            xtol=eps * x_guess,
+            rtol=4 * eps,
+            maxiter=1000,
+        )
+
         # Check that we have achieved target tolerance
         resid = abs(fast_log2(root.root) - y_)
         tol = eps * abs(y_) * 20
@@ -101,9 +104,11 @@ def inverse_fast_log2(y):
 
             # Warn if final residual too high
             if resid > tol:
-                print("Warning: could not reduce residual below {:e} for "
-                      "inverse_fast_log2({:e})".format(resid, y_))
-                
+                print(
+                    "Warning: could not reduce residual below {:e} for "
+                    "inverse_fast_log2({:e})".format(resid, y_)
+                )
+
         # Store result
         res[i] = root.root
 

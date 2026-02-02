@@ -1,8 +1,8 @@
 import sys
 
+
 # ****************
 def parse_prizmo(line):
-
     srow = line.strip()
 
     # temperature ranges
@@ -41,9 +41,9 @@ def parse_prizmo(line):
 
     return rr, pp, tmin, tmax, rate
 
+
 # ****************
 def parse_udfa(line):
-
     arow = line.split(":")
     rtype = arow[1]
     rr = arow[2:4]
@@ -53,7 +53,7 @@ def parse_udfa(line):
 
     if tmin <= 0e0:
         tmin = None
-    if tmax >= 41000.:
+    if tmax >= 41000.0:
         tmax = None
 
     rate = None
@@ -75,9 +75,9 @@ def parse_udfa(line):
 
     return rr, pp, tmin, tmax, rate
 
+
 # ****************
 def parse_kida(line):
-
     ignore = ["CR", "CRP", "Photon"]
 
     products_pos = 34
@@ -85,14 +85,14 @@ def parse_kida(line):
 
     srow = line
 
-    rr = [x for x in srow[:products_pos].split() if x != '+']
-    pp = [x for x in srow[products_pos:a_pos].split() if x != '+']
+    rr = [x for x in srow[:products_pos].split() if x != "+"]
+    pp = [x for x in srow[products_pos:a_pos].split() if x != "+"]
     arow = srow[a_pos:].split()
-    
+
     # Check if we have enough fields
     if len(arow) < 10:
         raise ValueError(f"Invalid KIDA format: insufficient fields in line: {line}")
-    
+
     ka, kb, kc = [float(x) for x in arow[:3]]
     formula = int(arow[9])
     tmin = float(arow[7])
@@ -100,9 +100,8 @@ def parse_kida(line):
 
     if float(tmin) <= 0e0:
         tmin = None
-    if float(tmax) >= 9999.:
+    if float(tmax) >= 9999.0:
         tmax = None
-
 
     rate = ""
 
@@ -123,9 +122,12 @@ def parse_kida(line):
     elif formula == 5:
         rate += "%.2e" % (ka * kb)
         if kc != 0e0:
-            rate += " * (1e0 + 0.0967 * %.2e * sqrt(3e2 / tgas + %e * 3e2 / 10.526 / tgas))" % (kc, kc**2)
+            rate += (
+                " * (1e0 + 0.0967 * %.2e * sqrt(3e2 / tgas + %e * 3e2 / 10.526 / tgas))"
+                % (kc, kc**2)
+            )
     else:
-        #print("WARNING: KIDA formula %d not implemented, rate coefficient set to 0e0" % formula)
+        # print("WARNING: KIDA formula %d not implemented, rate coefficient set to 0e0" % formula)
         rate = "0e0"
 
     rr = [x.strip() for x in rr if x.strip() not in ignore]
@@ -136,7 +138,6 @@ def parse_kida(line):
 
 # ****************
 def parse_krome(line, fmt):
-
     line = line.replace(" ", "")
 
     afmt = [x.strip() for x in fmt.lower().strip().split(":")[1].split(",")]
@@ -147,13 +148,15 @@ def parse_krome(line, fmt):
 
     tmin = tmax = None
 
-    tminmax_reps = {"d": "e",
-                    ".le.": "",
-                    ".ge.": "",
-                    ".lt.": "",
-                    ".gt.": "",
-                    ">": "",
-                    "<": ""}
+    tminmax_reps = {
+        "d": "e",
+        ".le.": "",
+        ".ge.": "",
+        ".lt.": "",
+        ".gt.": "",
+        ">": "",
+        "<": "",
+    }
 
     rr = []
     pp = []
@@ -182,9 +185,7 @@ def parse_krome(line, fmt):
             print("ERROR: unknown KROME format %s in line '%s'" % (x, line))
             sys.exit(1)
 
-    rate_reps = {"user_crflux": "crate",
-                 "user_crate": "crate",
-                 "user_av": "av"}
+    rate_reps = {"user_crflux": "crate", "user_crate": "crate", "user_av": "av"}
 
     for k, v in rate_reps.items():
         rate = rate.replace(k, v)
@@ -194,9 +195,7 @@ def parse_krome(line, fmt):
     if "auto" in rate:
         rate = rate.replace("auto", "PHOTO, 1e99")
 
-    sp_reps = {"E": "e-",
-                "e": "e-",
-                "g": ""}
+    sp_reps = {"E": "e-", "e": "e-", "g": ""}
 
     rr = [sp_reps[x] if x in sp_reps else x for x in rr]
     pp = [sp_reps[x] if x in sp_reps else x for x in pp]
@@ -212,12 +211,14 @@ def parse_krome(line, fmt):
 
     return rr, pp, tmin, tmax, rate
 
+
 # ****************
 def parse_uclchem(line):
-
     srow = line.strip()
 
-    print("WARNING: UCLCHEM reaction format detected, but not implemented yet. Rate set to 0e0.")
+    print(
+        "WARNING: UCLCHEM reaction format detected, but not implemented yet. Rate set to 0e0."
+    )
 
     arow = [x.strip() for x in srow.strip().split(",")]
     # !Reactant 1,Reactant 2,Reactant 3,Product 1,Product 2,Product 3,Product 4,Alpha,Beta,Gamma,T_min,T_max,extrapolate
@@ -249,9 +250,7 @@ def parse_uclchem(line):
     # FIXME: this is because the parser needs to be finished
     rate = "0e0"
 
-
     def convert(sp):
-
         if sp.startswith("#"):
             sp = sp[1:] + "_DUST"
         if sp.startswith("@"):
@@ -259,10 +258,7 @@ def parse_uclchem(line):
         if sp == "E-":
             sp = "e-"
 
-        reps ={"HE": "He",
-               "SI": "Si",
-               "CL": "Cl",
-               "MG": "Mg"}
+        reps = {"HE": "He", "SI": "Si", "CL": "Cl", "MG": "Mg"}
 
         for k, v in reps.items():
             sp = sp.replace(k, v)
@@ -270,24 +266,38 @@ def parse_uclchem(line):
         return sp
 
     ignore = ["CR", "CRP", "CRPHOT", "PHOTON", "NAN", ""]
-    ignore += ["ER", "ERDES", "FREEZE", "H2FORM", "BULKSWAP", "DESCR",
-               "DESOH2", "DEUVCR", "LH", "LHDES", "SURFSWAP", "THERM"]
+    ignore += [
+        "ER",
+        "ERDES",
+        "FREEZE",
+        "H2FORM",
+        "BULKSWAP",
+        "DESCR",
+        "DESOH2",
+        "DEUVCR",
+        "LH",
+        "LHDES",
+        "SURFSWAP",
+        "THERM",
+    ]
 
     rr = [convert(x.strip()) for x in rr if x.strip() not in ignore]
     pp = [convert(x.strip()) for x in pp if x.strip() not in ignore]
 
     return rr, pp, tmin, tmax, rate
 
+
 # ****************
 def f90_convert(line):
     import re
+
     # dexp -> exp
     line = line.replace("dexp(", "exp(")
     line = line.replace("(:)", "")
     # double precision exponential to standard scientific notation
     fa = re.findall(r"[0-9_.]d[0-9_+-]", line)
-    #line = re.sub(r"([0-9_.]+)d([0-9_+-]+)", r"\1e\2", line)
+    # line = re.sub(r"([0-9_.]+)d([0-9_+-]+)", r"\1e\2", line)
     for a in fa:
-        line = line.replace(a, a[0]+"e"+a[2])
+        line = line.replace(a, a[0] + "e" + a[2])
 
     return line
