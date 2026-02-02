@@ -62,6 +62,14 @@ def main(network, path_template, path_build=None):
     jacobian = re.sub(r"J\((\d+)\s*,\s*(\d+)\)", repl1, jacobian)
     jacobian = jacobian.replace("const double", "Real").replace("tgas", "T")
 
+
+    dEdt_code = network.get_dEdt(language="c++")
+
+    dEdt_code = re.sub(r"nden\[(\d+)\]", r"X(\1)", dEdt_code)
+    dEdt_code = re.sub(r"\bcse(\d+)\b", r"x\1", dEdt_code)
+    dEdt_code = dEdt_code.replace("const double", "Real").replace("tgas", "T")
+
+
     # Generate temperature variable definitions for C++
     # These variables are commonly used in chemistry rate expressions
     temp_vars = """
@@ -71,7 +79,7 @@ Real T = state.T;
     # Process all files with auto-detected comment styles
     p.preprocess(path_template,
                  ["actual_rhs.H", "actual_network_data.cpp"],
-                 [{"TEMP_VARS": temp_vars, "ODE": sode,  "JACOBIAN": jacobian}, 
+                 [{"TEMP_VARS": temp_vars, "ODE": sode, "DEDT": "return 0;", "JACOBIAN": jacobian}, 
                   {"CHARGE": charge_code}],
                  comment="auto",
                  path_build=path_build)

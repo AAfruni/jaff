@@ -38,7 +38,9 @@ void rhs_specie(const burn_t& state,
 
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 Real rhs_eint(const burn_t& state,
-             const Array1D<Real, 0, NumSpec-1>& X) 
+             const Array1D<Real, 0, NumSpec-1>& X,
+             Real const crate, Real const av,
+             Real const d2g, Real const chi) 
              {
 
     using namespace Rates;
@@ -46,7 +48,8 @@ Real rhs_eint(const burn_t& state,
     // PREPROCESS_TEMP_VARS
     // PREPROCESS_END
     
-    return 0;
+    // PREPROCESS_DEDT
+    // PREPROCESS_END
     
 }
 
@@ -72,7 +75,7 @@ void actual_rhs (burn_t& state, Array1D<Real, 1, neqs>& ydot)
 
     // Edot
 
-    Real edot = rhs_eint(state, X);
+    Real edot = rhs_eint(state, X, crate, av, d2g, chi);
 
     // Append the energy equation (this is erg/g/s)
 

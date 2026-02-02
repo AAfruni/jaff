@@ -45,9 +45,9 @@
 ################################################################
 
 # Note -- all quantities in CGS units
-@var kB = 1.380649e-17             # Boltzmann's constant
+@var kB = 1.380649e-16             # Boltzmann's constant
 @var c_light = 2.99892458e10       # Speed of light
-@var sigma_SB = 5.670374419e-15    # Stefan-Boltmzann constant
+@var sigma_SB = 5.670374419e-5     # Stefan-Boltmzann constant
 @var a_R = 4 * sigma_SB / c        # Radiation constant
 @var c_a = c_light * a_R           # c * a_R
 @var amu = 1.66054e-24             # 1 amu in gram
@@ -436,7 +436,7 @@
     # Constants in Gong's function for C+ reaction rate
     A = 2.995e-9
     B = 0.7849
-    T0 = 1.943e6
+    T0 = 6.670e-3   #1.943e6 
     T1 = 1.943e6
     C = 0.1597
     T2 = 4.955e4

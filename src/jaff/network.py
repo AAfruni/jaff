@@ -6,7 +6,7 @@ import re
 import os
 from tqdm import tqdm
 import sympy
-from sympy import parse_expr, symbols, sympify, lambdify, srepr, \
+from sympy import cxxcode, parse_expr, symbols, sympify, lambdify, srepr, \
     MatrixSymbol, Idx, Function, Piecewise
 from sympy.core.function import UndefinedFunction
 import h5py
@@ -1015,6 +1015,62 @@ class Network:
                 sode += f"{derivative_var}{lb}{name}{rb} = {expr}\n"
 
         return sode
+
+    def get_dEdt(self, language="c++"):
+        """
+        Generate symbolic expressions for dE/dt.
+
+        Returns:
+            string: dE/dt expression
+        """
+        from sympy import cse, numbered_symbols
+
+
+        replacements, reduced_exprs = cse(self.dEdt_chem, symbols=numbered_symbols('cse'))
+        dEdt_reduced = reduced_exprs[:]
+
+        def _prune_cse(_repls, _exprs):
+            if not _repls:
+                return []
+            _cse_syms = [v for v, _ in _repls]
+            _cse_set = set(_cse_syms)
+            _used = set()
+            for _e in _exprs:
+                _used |= (_e.free_symbols & _cse_set)
+            if not _used:
+                return []
+            _dep_map = {v: e for v, e in _repls}
+            _changed = True
+            while _changed:
+                _changed = False
+                _addl = set()
+                for _v in list(_used):
+                    _ev = _dep_map.get(_v)
+                    if _ev is None:
+                        continue
+                    _deps = _ev.free_symbols & _cse_set
+                    _new = _deps - _used
+                    if _new:
+                        _addl |= _new
+                if _addl:
+                    _used |= _addl
+                    _changed = True
+            return [(v, _dep_map[v]) for v, _ in _repls if v in _used]
+
+
+
+        pruned_repls = _prune_cse(replacements, dEdt_reduced)
+        # Generate ODE code with only the needed CSE assignments
+        dEdt_code = ""
+        for i, (var, expr) in enumerate(pruned_repls):
+            expr_str = cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
+            dEdt_code += f"const double {var} = {expr_str}; \n"
+
+        expr_str = cxxcode(dEdt_reduced) if language in ["c++", "cpp", "cxx"] else str(dEdt_reduced)
+        dEdt_code += f"return {expr_str}; \n"
+
+        return dEdt_code
+
 
     # *****************
     def get_symbolic_ode_and_jacobian(self, idx_offset=0, use_cse=True, language="c++"):
