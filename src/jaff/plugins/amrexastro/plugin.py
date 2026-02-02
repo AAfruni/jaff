@@ -39,27 +39,21 @@ def main(network, path_template, path_build=None):
     charge_code = f"state.xn[{e_index}] = {rhs};"
 
     # Generate symbolic ODE and analytical Jacobian
-    sode, jacobian = network.get_symbolic_ode_and_jacobian(idx_offset=0, use_cse=True, language="c++")
+    sode, jacobian = network.get_symbolic_ode_and_jacobian(idx_offset=1, use_cse=True, language="c++")
 
     import re
-
-    def repl(match):
-        i = int(match.group(1))
-        return f"ydot({i+1})"
-
-    def repl1(match):
-        i = int(match.group(1))
-        j = int(match.group(2))
-        return f"jac({i+1},{j+1})"
     
     sode = re.sub(r"nden\[(\d+)\]", r"X(\1)", sode)
     sode = re.sub(r"\bcse(\d+)\b", r"x\1", sode)
-    sode = re.sub(r"f\[(\d+)\]", repl, sode)
+    #sode = re.sub(r"f\[(\d+)\]", repl, sode)
+    sode = re.sub(r"f\[(\d+)\]", r"ydot(\1)", sode)
+
+
     sode = sode.replace("const double", "Real").replace("tgas", "T")
 
     jacobian = re.sub(r"nden\[(\d+)\]", r"X(\1)", jacobian)
     jacobian = re.sub(r"\bcse(\d+)\b", r"x\1", jacobian)
-    jacobian = re.sub(r"J\((\d+)\s*,\s*(\d+)\)", repl1, jacobian)
+    jacobian = re.sub(r"J\((\d+)\s*,\s*(\d+)\)", r"jac(\1,\2)", jacobian)
     jacobian = jacobian.replace("const double", "Real").replace("tgas", "T")
 
 

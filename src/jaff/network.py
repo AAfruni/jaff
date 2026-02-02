@@ -1113,7 +1113,7 @@ class Network:
         Returns:
             string: dE/dt expression
         """
-        from sympy import cse, numbered_symbols
+        from sympy import cse, numbered_symbols, cxxcode
 
 
         replacements, reduced_exprs = cse(self.dEdt_chem, symbols=numbered_symbols('cse'))
