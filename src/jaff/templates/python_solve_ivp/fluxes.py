@@ -1,6 +1,6 @@
 import numpy as np
-from rates import get_rates
 from commons import *
+from rates import get_rates
 
 
 def get_fluxes(y, tgas, crate, av):

@@ -105,6 +105,9 @@ ruff format
 
 # Lint code
 ruff check src/jaff
+
+# Organize imports
+ruff check --select I --fix
 ```
 
 ---

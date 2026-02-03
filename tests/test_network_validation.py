@@ -1,12 +1,13 @@
 # ABOUTME: Unit tests for Network class validation methods
 # ABOUTME: Tests mass/charge conservation, sink/source detection, and duplicate checking
 
-import pytest
 import os
 import sys
 import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import numpy as np
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))

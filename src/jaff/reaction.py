@@ -1,5 +1,6 @@
-import numpy as np
 import sys
+
+import numpy as np
 import sympy
 
 
@@ -26,7 +27,7 @@ class Reaction:
         self.serialized = self.serialize()
 
     def guess_type(self):
-        from sympy import symbols, Function
+        from sympy import Function, symbols
 
         rtype = "unknown"
 
@@ -146,8 +147,8 @@ class Reaction:
         return any([x.name in species for x in self.products])
 
     def get_python(self):
-        from sympy.printing.numpy import NumPyPrinter
         from sympy import Function
+        from sympy.printing.numpy import NumPyPrinter
 
         if type(self.rate) is str:
             return self.rate

@@ -2,9 +2,11 @@
 # ABOUTME: Test module to verify CSE (Common Subexpression Elimination) works in C++ code generation
 # ABOUTME: Tests that common subexpressions in reaction rates are properly identified and extracted
 
-import pytest
 import os
 from pathlib import Path
+
+import pytest
+
 from jaff.network import Network
 
 

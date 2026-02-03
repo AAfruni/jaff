@@ -1,8 +1,8 @@
-from scipy.integrate import solve_ivp
-import numpy as np
 import matplotlib.pyplot as plt
-from commons import nvars, idx_CO, idx_COj, idx_tgas
+import numpy as np
+from commons import idx_CO, idx_COj, idx_tgas, nvars
 from ode import get_ode
+from scipy.integrate import solve_ivp
 
 
 def f(_, y, crate, av):

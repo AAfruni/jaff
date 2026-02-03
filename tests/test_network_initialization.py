@@ -1,12 +1,13 @@
 # ABOUTME: Unit tests for Network class initialization
 # ABOUTME: Tests constructor, mass dict loading, and label handling
 
-import pytest
 import os
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
