@@ -35,6 +35,7 @@ dev = [
     "pytest>=7.0",
     "pytest-cov",
     "ruff",
+    "check-jsonschema",
 ]
 
 [project.scripts]

@@ -1,0 +1,514 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jaff.dev/schemas/jaff.network.schema.json",
+  "title": "JAFF Network JSON (.jaff payload)",
+  "description": "Schema for the JSON Astrochemical File Format (JAFF) network payload. JAFF is a human-inspectable, machine-readable interchange format for astrochemical reaction networks. Files are stored as JSON with a .jaff suffix (uncompressed) or .jaff.gz (gzip-compressed). A JAFF payload exported by Network.to_jaff_file is expected to be reconstructed by Network.from_jaff_file to machine precision; exact bitwise reconstruction would require explicit mantissa/exponent/sign metadata. Networks with undefined/unimplemented functions are not supported; the payload must fully define the ODE system.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema_version",
+    "jaff_version",
+    "sympy_schema_version",
+    "sympy_version",
+    "label",
+    "file_name",
+    "species",
+    "rate_symbols",
+    "reactions"
+  ],
+  "properties": {
+    "format": {
+      "const": "jaff.network_json"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "jaff_version": {
+      "type": "string"
+    },
+    "sympy_schema_version": {
+      "const": 2
+    },
+    "sympy_version": {
+      "type": "string"
+    },
+    "label": {
+      "type": "string"
+    },
+    "file_name": {
+      "type": "string"
+    },
+    "species": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/species"
+      }
+    },
+    "rate_symbols": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/rate_symbol"
+      }
+    },
+    "reactions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/reaction"
+      }
+    }
+  },
+  "$defs": {
+    "species": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "index", "mass", "charge"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "mass": {
+          "type": ["number", "null"]
+        },
+        "charge": {
+          "type": ["integer", "null"]
+        }
+      }
+    },
+    "rate_symbol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "assumptions"],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/rate_symbol_name"
+        },
+        "assumptions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "rate_symbol_name": {
+      "type": "string",
+      "enum": [
+        "tgas",
+        "tdust",
+        "av",
+        "crate",
+        "fuv",
+        "asize",
+        "nuth",
+        "sigmah",
+        "m"
+      ],
+      "description": "Standardized JAFF rate symbols used in this codebase; see rate_symbol_vocabulary for meanings. Algebraic shorthands (e.g., t32, invtgas), aliases (e.g., user_av), and species number-density shortcuts (e.g., nh, ne, ntot) must be expanded into the SymPy AST instead of being listed as rate symbols."
+    },
+    "rate_symbol_vocabulary": {
+      "type": "object",
+      "description": "Standard vocabulary for rate symbols and their meanings. Algebraic shorthands, aliases, and species number-density shortcuts are not part of this vocabulary and should be expressed directly in the SymPy AST as explicit species concentrations.",
+      "additionalProperties": false,
+      "properties": {
+        "tgas": {
+          "description": "Gas temperature (K)."
+        },
+        "tdust": {
+          "description": "Dust temperature (K)."
+        },
+        "av": {
+          "description": "Visual extinction A_V (mag), used as a shielding column proxy."
+        },
+        "crate": {
+          "description": "Cosmic-ray ionization rate (s^-1) or scaling factor for CR-driven reactions."
+        },
+        "fuv": {
+          "description": "Far-UV radiation field scaling factor (dimensionless)."
+        },
+        "asize": {
+          "description": "Dust grain size parameter (cm)."
+        },
+        "nuth": {
+          "description": "Thermal velocity prefactor used in freeze-out expressions (cm/s)."
+        },
+        "sigmah": {
+          "description": "Dust cross-section per H nucleus used in freeze-out expressions (cm^2)."
+        },
+        "m": {
+          "description": "Particle mass used in freeze-out expressions (g)."
+        }
+      }
+    },
+    "reaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reactants",
+        "products",
+        "rate",
+        "tmin",
+        "tmax",
+        "dE",
+        "original_string",
+        "xsecs"
+      ],
+      "properties": {
+        "reactants": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "products": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "rate": {
+          "$ref": "#/$defs/encoded_value"
+        },
+        "tmin": {
+          "type": ["number", "null"]
+        },
+        "tmax": {
+          "type": ["number", "null"]
+        },
+        "dE": {
+          "$ref": "#/$defs/encoded_value"
+        },
+        "original_string": {
+          "type": "string"
+        },
+        "xsecs": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/$defs/xsecs"}
+          ]
+        }
+      }
+    },
+    "xsecs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["energy", "xsecs"],
+      "properties": {
+        "energy": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "xsecs": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "encoded_value": {
+      "description": "Encoded value used for rate and dE. Either null, a wrapped literal string, or a JAFF SymPy JSON expression.",
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/encoded_string"},
+        {"$ref": "#/$defs/sympy_expr"}
+      ]
+    },
+    "encoded_string": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": {
+          "const": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "sympy_expr": {
+      "description": "Compact JAFF SymPy JSON expression node (schema_version=2).",
+      "anyOf": [
+        {"type": "number"},
+        {"$ref": "#/$defs/sympy_node"}
+      ]
+    },
+    "sympy_node": {
+      "oneOf": [
+        {"$ref": "#/$defs/sympy_true"},
+        {"$ref": "#/$defs/sympy_false"},
+        {"$ref": "#/$defs/sympy_symbol"},
+        {"$ref": "#/$defs/sympy_integer"},
+        {"$ref": "#/$defs/sympy_rational"},
+        {"$ref": "#/$defs/sympy_float"},
+        {"$ref": "#/$defs/sympy_str"},
+        {"$ref": "#/$defs/sympy_matrix_symbol"},
+        {"$ref": "#/$defs/sympy_matrix_element"},
+        {"$ref": "#/$defs/sympy_expr_cond_pair"},
+        {"$ref": "#/$defs/sympy_strict_lt"},
+        {"$ref": "#/$defs/sympy_strict_gt"},
+        {"$ref": "#/$defs/sympy_piecewise"},
+        {"$ref": "#/$defs/sympy_pow"},
+        {"$ref": "#/$defs/sympy_add"},
+        {"$ref": "#/$defs/sympy_mul"},
+        {"$ref": "#/$defs/sympy_exp"},
+        {"$ref": "#/$defs/sympy_log"},
+        {"$ref": "#/$defs/sympy_max"},
+        {"$ref": "#/$defs/sympy_min"}
+      ]
+    },
+    "sympy_true": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {"const": "T"}
+      ],
+      "items": false
+    },
+    "sympy_false": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "prefixItems": [
+        {"const": "F"}
+      ],
+      "items": false
+    },
+    "sympy_symbol": {
+      "oneOf": [
+        {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {"const": "S"},
+            {"type": "string"}
+          ],
+          "items": false
+        },
+        {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {"const": "S"},
+            {"type": "string"},
+            {
+              "type": "object",
+              "additionalProperties": {"type": "boolean"}
+            }
+          ],
+          "items": false
+        }
+      ]
+    },
+    "sympy_integer": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": "I"},
+        {"type": "integer"}
+      ],
+      "items": false
+    },
+    "sympy_rational": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {"const": "Q"},
+        {"type": "integer"},
+        {"type": "integer"}
+      ],
+      "items": false
+    },
+    "sympy_float": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {"const": "Flt"},
+        {"type": "string"},
+        {"type": "integer"}
+      ],
+      "items": false
+    },
+    "sympy_str": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": "Str"},
+        {"type": "string"}
+      ],
+      "items": false
+    },
+    "sympy_matrix_symbol": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        {"const": "MS"},
+        {"type": "string"},
+        {"$ref": "#/$defs/sympy_expr"},
+        {"$ref": "#/$defs/sympy_expr"}
+      ],
+      "items": false
+    },
+    "sympy_matrix_element": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        {"const": "ME"},
+        {"$ref": "#/$defs/sympy_expr"},
+        {"$ref": "#/$defs/sympy_expr"},
+        {"$ref": "#/$defs/sympy_expr"}
+      ],
+      "items": false
+    },
+    "sympy_expr_cond_pair": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {"const": "ECP"},
+        {"$ref": "#/$defs/sympy_expr"},
+        {"$ref": "#/$defs/sympy_expr"}
+      ],
+      "items": false
+    },
+    "sympy_strict_lt": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {"const": "LT"},
+        {"$ref": "#/$defs/sympy_expr"},
+        {"$ref": "#/$defs/sympy_expr"}
+      ],
+      "items": false
+    },
+    "sympy_strict_gt": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {"const": "GT"},
+        {"$ref": "#/$defs/sympy_expr"},
+        {"$ref": "#/$defs/sympy_expr"}
+      ],
+      "items": false
+    },
+    "sympy_piecewise": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": "PW"},
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/sympy_expr_cond_pair"}
+        }
+      ],
+      "items": false
+    },
+    "sympy_pow": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        {"const": "Pow"},
+        {"$ref": "#/$defs/sympy_expr"},
+        {"$ref": "#/$defs/sympy_expr"}
+      ],
+      "items": false
+    },
+    "sympy_add": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": "Add"},
+        {
+          "type": "array",
+          "items": {"$ref": "#/$defs/sympy_expr"}
+        }
+      ],
+      "items": false
+    },
+    "sympy_mul": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": "Mul"},
+        {
+          "type": "array",
+          "items": {"$ref": "#/$defs/sympy_expr"}
+        }
+      ],
+      "items": false
+    },
+    "sympy_exp": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": "exp"},
+        {"$ref": "#/$defs/sympy_expr"}
+      ],
+      "items": false
+    },
+    "sympy_log": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": "log"},
+        {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/sympy_expr"}
+        }
+      ],
+      "items": false
+    },
+    "sympy_max": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": "Max"},
+        {
+          "type": "array",
+          "items": {"$ref": "#/$defs/sympy_expr"}
+        }
+      ],
+      "items": false
+    },
+    "sympy_min": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {"const": "Min"},
+        {
+          "type": "array",
+          "items": {"$ref": "#/$defs/sympy_expr"}
+        }
+      ],
+      "items": false
+    }
+  }
+}

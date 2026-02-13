@@ -110,7 +110,14 @@ ruff check src/jaff
 ruff check --select I --fix
 ```
 
----
+## JAFF Schema Validation
 
-![xkcd:927](./assets/xkcd.png)  
-![https://xkcd.com/927/](https://xkcd.com/927/)
+JAFF network exports are JSON payloads serialized to `.jaff` (optionally gzip-compressed as `.jaff.gz`).
+To validate a decompressed payload against the schema:
+
+```bash
+check-jsonschema --schemafile jaff.network.schema.json test.jaff
+```
+
+-----------------------------
+![xkcd:927](./assets/xkcd.png)               
