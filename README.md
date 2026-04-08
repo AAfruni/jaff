@@ -1,8 +1,14 @@
 # JAFF
 
-(Just Another Fancy Format)
+<div align="center">
+    <img src="assets/logo_alt.svg" alt="Logo" width="100" /><br>
+    (Just Another Fancy Format)
+    <br><br>
+</div>
 
 An astrochemical network parser that supports multiple reaction network formats including KIDA, UDFA, PRIZMO, KROME, and UCLCHEM.
+
+For detailed instructons, please refer to the [Documentation](https://jaff-chemistry.github.io/jaff/)
 
 ## Installation
 
@@ -119,5 +125,6 @@ To validate a decompressed payload against the schema:
 check-jsonschema --schemafile jaff.network.schema.json test.jaff
 ```
 
------------------------------
-![xkcd:927](./assets/xkcd.png)               
+---
+
+![xkcd:927](./assets/xkcd.png)

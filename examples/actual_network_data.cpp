@@ -3,25 +3,16 @@
 
 #include <actual_network.H>
 
+namespace network {}
 
-namespace network
-{
-}
+void actual_network_init() {}
 
+void balance_charge(burn_t &state) {
+  // update the number density of electrons due to charge conservation
 
-void actual_network_init()
-{
+  // PREPROCESS_CHARGE
 
-}
+  state.xn[2] = 0.0 + (1) * state.xn[1] + (1) * state.xn[4] + (1) * state.xn[6] + (1) * state.xn[8] + (1) * state.xn[10] + (1) * state.xn[13] + (1) * state.xn[16] + (1) * state.xn[17];
 
-void balance_charge(burn_t& state)
-{
-
-    // update the number density of electrons due to charge conservation
-    // PREPROCESS_CHARGE
-
-    state.xn[2] = state.xn[1] + state.xn[4] + state.xn[6] + state.xn[8] + state.xn[10] + state.xn[13] + state.xn[16] + state.xn[17];
-
-    // PREPROCESS_END
-
+  // PREPROCESS_END
 }

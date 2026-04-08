@@ -1,6 +1,8 @@
 import functools
+import math
 
 import numpy as np
+
 from commons import nreactions
 
 
@@ -8,7 +10,9 @@ def get_rates(tgas, crate, av):
     k = np.zeros(nreactions)
     kphoto = np.zeros(nreactions)
 
-    # PREPROCESS_RATES
+    # $JAFF REPEAT idx, rate IN  rates
 
-    # PREPROCESS_END
+    k[$idx$] = $rate$
+
+    # $JAFF END
     return k

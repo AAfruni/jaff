@@ -1,29 +1,37 @@
 import os
 import re
 
+from jaff import Codegen
 from jaff.network import Network
 from jaff.preprocessor import Preprocessor
 
 
 def main(
     network: Network,
-    path_template: os.PathLike,
+    path_template: os.PathLike | str,
     path_build: os.PathLike | None = None,
 ) -> None:
     filenames = ["actual_network.H", "actual_network_data.cpp", "actual_rhs.H"]
+    cg = Codegen(network=network, lang="cxx")
     pp = Preprocessor()
     charge_cons = "0.0"
 
-    sode, jac = network.get_symbolic_ode_and_jacobian(
-        idx_offset=1, use_cse=True, language="c++"
+    ode = cg.get_rhs_str(
+        idx_offset=1,
+        use_cse=True,
+        def_prefix="const amrex::Real ",
+        brac_format="()",
+        ode_var="ydot",
     )
-    sode = re.sub(r"f\[\s*(\d+)\s*\]", r"ydot(\1)", sode).replace(
-        "const double", "const amrex::Real"
+    jac = cg.get_jacobian_str(
+        idx_offset=1,
+        use_dedt=True,
+        use_cse=True,
+        var_prefix="const amrex::Real ",
+        jac_var="jac",
+        matrix_format="(,)",
     )
-    sode = re.sub(r"nden\[\s*(\d+)\s*\]", r"nden(\1)", sode)
-    jac = re.sub(r"J\(\s*(\d+)\s*,\s*(\d+)\s*\)", r"jac(\1, \2)", jac).replace(
-        "const double", "const amrex::Real"
-    )
+    ode = re.sub(r"nden\[\s*(\d+)\s*\]", r"nden(\1)", ode)
     jac = re.sub(r"nden\[\s*(\d+)\s*\]", r"nden(\1)", jac)
 
     electron_found = False
@@ -46,9 +54,14 @@ def main(
         {},
         {"CHARGE": charge_cons},
         {
-            "ODE": sode,
+            "ODE": ode,
             "JACOBIAN": jac,
         },
     ]
 
     pp.preprocess(path_template, filenames, pp_sub, comment="//", path_build=path_build)
+
+
+if __name__ == "__main__":
+    net = Network("networks/test.dat")
+    main(net, path_template="src/jaff/templates/preprocessor/microphysics")

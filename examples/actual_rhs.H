@@ -4,1054 +4,992 @@
 #ifndef actual_rhs_H
 #define actual_rhs_H
 
-#include <AMReX_REAL.H>
 #include <AMReX_Array.H>
+#include <AMReX_REAL.H>
+#include <cmath>
 
-#include <extern_parameters.H>
 #include <actual_network.H>
 #include <burn_type.H>
-#include <jacobian_utilities.H>
 #include <extern_parameters.H>
+#include <jacobian_utilities.H>
 
-using namespace amrex;
 using namespace ArrayUtil;
 using namespace network_rp;
 
+AMREX_GPU_HOST_DEVICE AMREX_INLINE amrex::Real photorates() { return 0.0; }
+
+AMREX_GPU_HOST_DEVICE AMREX_INLINE void
+rhs_specie(const burn_t &state, amrex::Array1D<amrex::Real, 1, neqs> &ydot,
+           const amrex::Array1D<amrex::Real, 0, NumSpec - 1> &nden) {
+
+  using namespace Rates;
+
+  amrex::Real tgas = state.T;
+  //amrex::Real crate = 0.0; // placeholder
+  //amrex::Real av = 0.0;    // placeholder
+
+  amrex::Real crate = network_rp::crate;
+  amrex::Real av = network_rp::Av;
+  amrex::Real d2g = network_rp::dust2gas_ratio;
+  amrex::Real chi = network_rp::chi;
 
 
-AMREX_GPU_HOST_DEVICE AMREX_INLINE
-void rhs_specie(const burn_t& state,
-             Array1D<Real, 1, neqs>& ydot,
-             const Array1D<Real, 0, NumSpec-1>& X,
-             Real const crate, Real const av,
-             Real const d2g, Real const chi,
-             Real const Tdust) {
+  // PREPROCESS_ODE
 
-    using namespace Rates;
+  const amrex::Real cse0 = 6.3999999999999996e-10*nden(4);
+  const amrex::Real cse1 = cse0*nden(0);
+  const amrex::Real cse2 = -cse1;
+  const amrex::Real cse3 = std::sqrt(tgas);
+  const amrex::Real cse4 = 1.0/nden(2);
+  const amrex::Real cse5 = cse3*cse4;
+  const amrex::Real cse6 = cse5*nden(3);
+  const amrex::Real cse7 = 0.00011320754716981131*cse6;
+  const amrex::Real cse8 = std::min(10000000000.0, cse7);
+  const amrex::Real cse9 = cse8 + 1;
+  const amrex::Real cse10 = 1.0/cse9;
+  const amrex::Real cse11 = 1.6000000000000001e-9*cse10;
+  const amrex::Real cse12 = cse11*nden(17);
+  const amrex::Real cse13 = cse12*nden(3);
+  const amrex::Real cse14 = cse13*cse8;
+  const amrex::Real cse15 = cse10*nden(16);
+  const amrex::Real cse16 = 1.99e-9*std::pow(tgas, -0.19);
+  const amrex::Real cse17 = cse15*cse16;
+  const amrex::Real cse18 = cse17*nden(11);
+  const amrex::Real cse19 = 3.5000000000000002e-11*nden(15);
+  const amrex::Real cse20 = cse19*nden(11);
+  const amrex::Real cse21 = 3.7999999999999998e-10*std::exp(-2.6600000000000001*av);
+  const amrex::Real cse22 = cse21*nden(15);
+  const amrex::Real cse23 = std::max(10.0, std::min(500.0, tgas));
+  const amrex::Real cse24 = 7.9968521560975323e-10*std::pow(cse23, -0.34000000000000002)*std::exp(0.11/cse23);
+  const amrex::Real cse25 = cse24*nden(15);
+  const amrex::Real cse26 = cse25*nden(7);
+  const amrex::Real cse27 = std::pow(nden(3), 2);
+  const amrex::Real cse28 = 1.0/tgas;
+  const amrex::Real cse29 = std::log(5.9959999999999997e-30*std::pow(tgas, 4.1881000000000004)*std::pow(6.7610000000000002e-6*tgas + 1, -5.6881000000000004)*std::exp(-54657.400000000001*cse28));
+  const amrex::Real cse30 = M_LN10;
+  const amrex::Real cse31 = 1.0/cse30;
+  const amrex::Real cse32 = 2*nden(3);
+  const amrex::Real cse33 = cse32 + nden(0) + nden(1) + nden(10) + nden(14) + nden(15) + 3*nden(16) + 2*nden(4);
+  const amrex::Real cse34 = 1.0/cse33;
+  const amrex::Real cse35 = std::log((1.0/10000.0)*tgas);
+  const amrex::Real cse36 = std::pow(cse35, 2)/std::pow(cse30, 2);
+  const amrex::Real cse37 = std::pow(10, 1.3*cse31*cse35 - 1.6200000000000001*cse36 - 4.8449999999999998);
+  const amrex::Real cse38 = cse34*cse37;
+  const amrex::Real cse39 = std::pow(10, 0.41599999999999998*cse31*cse35 + 0.32700000000000001*cse36 - 3);
+  const amrex::Real cse40 = cse34*cse39;
+  const amrex::Real cse41 = cse38*nden(3) + cse40*nden(0);
+  const amrex::Real cse42 = 1.0/cse41;
+  const amrex::Real cse43 = std::min(1.0e+100, cse42);
+  const amrex::Real cse44 = 1.0/cse43;
+  const amrex::Real cse45 = cse33*cse44;
+  const amrex::Real cse46 = cse45 + 1;
+  const amrex::Real cse47 = cse31/cse46;
+  const amrex::Real cse48 = std::log(1.3000000000000001e-9*std::exp(-53300*cse28));
+  const amrex::Real cse49 = cse45*cse47;
+  const amrex::Real cse50 = std::pow(10, cse29*cse47 + cse48*cse49);
+  const amrex::Real cse51 = tgas > 700.0;
+  const amrex::Real cse52 = ((cse51) ? (
+     cse50
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse53 = cse27*cse52;
+  const amrex::Real cse54 = std::exp(-4.1799999999999997*av);
+  const amrex::Real cse55 = 1.1399999999999999e-10*cse54;
+  const amrex::Real cse56 = 7.5e-10*std::pow(tgas, -0.45800000000000002) + 4.9899999999999997e-11*std::pow(tgas, 0.40500000000000003);
+  const amrex::Real cse57 = cse56*nden(17);
+  const amrex::Real cse58 = cse57*nden(0);
+  const amrex::Real cse59 = std::log(6.6699999999999996e-12*cse3*std::exp(-63590*cse28 - 1));
+  const amrex::Real cse60 = std::log(3.5199999999999998e-9*std::exp(-43900*cse28));
+  const amrex::Real cse61 = std::pow(10, cse47*cse59 + cse49*cse60);
+  const amrex::Real cse62 = ((cse51) ? (
+     cse61
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse63 = cse62*nden(0);
+  const amrex::Real cse64 = std::max(10.0, std::min(300.0, tgas));
+  const amrex::Real cse65 = std::pow(cse64, -0.52000000000000002);
+  const amrex::Real cse66 = 2.9935562710997168e-6*cse65;
+  const amrex::Real cse67 = cse66*nden(16);
+  const amrex::Real cse68 = 3.2000000000000001e-9*cse10;
+  const amrex::Real cse69 = cse68*nden(17);
+  const amrex::Real cse70 = 6.0000000000000005e-15*d2g;
+  const amrex::Real cse71 = cse70*nden(0);
+  const amrex::Real cse72 = (4.0000000000000001e-10*std::pow(tgas, 0.0066899999999999998) + 9.9999999999999994e-12*std::pow(tgas, 0.51700000000000002))*std::exp(-227*cse28);
+  const amrex::Real cse73 = cse72*nden(11);
+  const amrex::Real cse74 = cse73*nden(1);
+  const amrex::Real cse75 = std::pow(tgas, -1.3);
+  const amrex::Real cse76 = std::exp(-23*cse28);
+  const amrex::Real cse77 = cse75*cse76;
+  const amrex::Real cse78 = 4.2899999999999994e-13*cse77;
+  const amrex::Real cse79 = cse78*nden(8);
+  const amrex::Real cse80 = 9.0999999999999996e-10*std::exp(-2.1200000000000001*av);
+  const amrex::Real cse81 = cse80*nden(14);
+  const amrex::Real cse82 = 7.0000000000000004e-11*nden(14);
+  const amrex::Real cse83 = cse82*nden(11);
+  const amrex::Real cse84 = cse81 + cse83;
+  const amrex::Real cse85 = std::min(800.0, tgas);
+  const amrex::Real cse86 = 8.37e-10 + 6.1305895032630246e-8/std::sqrt(std::max(10.0, cse85));
+  const amrex::Real cse87 = cse86*nden(15);
+  const amrex::Real cse88 = cse87*nden(6);
+  const amrex::Real cse89 = 1.2599999999999999e-13*std::exp(-22.5*cse28);
+  const amrex::Real cse90 = cse89*nden(6);
+  const amrex::Real cse91 = cse90*nden(3);
+  const amrex::Real cse92 = cse88 + cse91;
+  const amrex::Real cse93 = 2.8142984982406731e-11*std::pow(cse23, 0.26000000000000001);
+  const amrex::Real cse94 = cse93*nden(14);
+  const amrex::Real cse95 = cse94*nden(0);
+  const amrex::Real cse96 = 1.7599999999999999e-9*std::pow(tgas, 0.042000000000000003)*std::exp(-2.145922746781116e-5*tgas);
+  const amrex::Real cse97 = cse96*nden(4);
+  const amrex::Real cse98 = cse97*nden(3);
+  const amrex::Real cse99 = -cse95 + cse98;
+  const amrex::Real cse100 = 6.5199999999999996*crate;
+  const amrex::Real cse101 = cse100*nden(9);
+  const amrex::Real cse102 = crate*(1.5*cse34*nden(0) + 2.2999999999999998*cse34*nden(3));
+  const amrex::Real cse103 = cse102*nden(0);
+  const amrex::Real cse104 = std::log(8.6173000000000003e-5*tgas);
+  const amrex::Real cse105 = ((cse51) ? (
+     5.9078447946382801e-70*std::pow(tgas, 13.536555999999999)*std::exp(-2.0391498499999999e-6*std::pow(cse104, 8) + 0.000111954395*std::pow(cse104, 7) - 0.00263197617*std::pow(cse104, 6) + 0.034825597700000002*std::pow(cse104, 5) - 0.28770560000000001*std::pow(cse104, 4) + 1.56315498*std::pow(cse104, 3) - 5.7393287500000003*std::pow(cse104, 2))
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse106 = cse105*nden(2);
+  const amrex::Real cse107 = cse106*nden(0);
+  const amrex::Real cse108 = 1.05849862170431e-5*std::pow(cse64, -0.64000000000000001);
+  const amrex::Real cse109 = cse108*nden(10);
+  const amrex::Real cse110 = cse109*nden(2);
+  const amrex::Real cse111 = 4.8813573300130879e-6*std::pow(cse28, 1.5)*std::pow(114.81344434488582*std::pow(cse28, 0.40699999999999997) + 1, -2.242);
+  const amrex::Real cse112 = cse111*nden(2);
+  const amrex::Real cse113 = cse112*nden(1);
+  const amrex::Real cse114 = cse33*d2g;
+  const amrex::Real cse115 = chi*cse5*std::exp(-1.8700000000000001*av);
+  const amrex::Real cse116 = std::pow(cse115, 1.3779999999999999);
+  const amrex::Real cse117 = 1.7*cse115;
+  const amrex::Real cse118 = cse31*std::log(tgas);
+  const amrex::Real cse119 = 1.102e-5*cse118 + 0.4723;
+  const amrex::Real cse120 = std::pow(cse117, -cse119)*std::pow(tgas, 0.015859999999999999);
+  const amrex::Real cse121 = cse116*(508.69999999999999*cse120 + 1);
+  const amrex::Real cse122 = 1.6774414051711492e-5*cse121 + 1;
+  const amrex::Real cse123 = 1.0/cse122;
+  const amrex::Real cse124 = 1.2250000000000001e-11*cse123;
+  const amrex::Real cse125 = cse114*cse124;
+  const amrex::Real cse126 = cse125*nden(1);
+  const amrex::Real cse127 = -cse101 - cse103 - cse107 + cse110 + cse113 + cse126;
+  const amrex::Real cse128 = cse58 - cse74;
+  const amrex::Real cse129 = 8400.0*crate;
+  const amrex::Real cse130 = cse129*nden(12);
+  const amrex::Real cse131 = 4.4999999999999998e-9*std::exp(-2.6099999999999999*av);
+  const amrex::Real cse132 = cse131*nden(12);
+  const amrex::Real cse133 = cse102*cse32;
+  const amrex::Real cse134 = 1.4595000290776864e-10*std::pow(cse64, -0.62);
+  const amrex::Real cse135 = cse134*nden(13);
+  const amrex::Real cse136 = cse135*nden(2);
+  const amrex::Real cse137 = std::pow(cse115, 1.8740000000000001);
+  const amrex::Real cse138 = 7.538e-5*cse118 + 0.89639999999999997;
+  const amrex::Real cse139 = std::pow(cse117, -cse138)*std::pow(tgas, 1.635e-6);
+  const amrex::Real cse140 = cse137*(43750.0*cse139 + 1);
+  const amrex::Real cse141 = 1.534817233071468e-7*cse140 + 1;
+  const amrex::Real cse142 = 1.0/cse141;
+  const amrex::Real cse143 = 2.1659999999999999e-12*cse142;
+  const amrex::Real cse144 = cse114*cse143;
+  const amrex::Real cse145 = cse144*nden(13);
+  const amrex::Real cse146 = cse13 + cse14;
+  const amrex::Real cse147 = 1.0537934368240927e-9*std::pow(cse28, 0.00231) + std::pow(tgas, -1.5)*(0.00015100000000000001*std::exp(-8110.0*cse28) + 2.007e-8*std::exp(-26.600000000000001*cse28) + 3.4e-8*std::exp(-1.3799999999999999*cse28));
+  const amrex::Real cse148 = cse147*nden(16);
+  const amrex::Real cse149 = cse148*nden(7);
+  const amrex::Real cse150 = 1.3007021411393064e-6*cse65;
+  const amrex::Real cse151 = cse150*nden(16);
+  const amrex::Real cse152 = cse18*cse8;
+  const amrex::Real cse153 = cse149 + cse151*nden(2) + cse152 + cse18;
+  const amrex::Real cse154 = 1.1000000000000001*crate;
+  const amrex::Real cse155 = 9.9999999999999994e-12*std::pow(tgas, -0.5)*(cse118*(cse118*(0.044330000000000001*cse118 - 0.28520000000000001) - 1.6759999999999999) + 11.19);
+  const amrex::Real cse156 = cse155*nden(6);
+  const amrex::Real cse157 = std::pow(cse115, 1.512);
+  const amrex::Real cse158 = 5.4939999999999998e-7*cse118 + 0.49559999999999998;
+  const amrex::Real cse159 = std::pow(cse117, -cse158)*std::pow(tgas, 3.9029999999999999e-7);
+  const amrex::Real cse160 = cse157*(5115.0*cse159 + 1);
+  const amrex::Real cse161 = 7.104740267838494e-7*cse160 + 1;
+  const amrex::Real cse162 = 1.0/cse161;
+  const amrex::Real cse163 = 5.5720000000000001e-12*cse162;
+  const amrex::Real cse164 = cse114*cse163;
+  const amrex::Real cse165 = -cse154*nden(5) + cse156*nden(2) + cse164*nden(6);
+  const amrex::Real cse166 = 3.2999999999999996e-13*cse77;
+  const amrex::Real cse167 = cse166*nden(8);
+  const amrex::Real cse168 = cse167*nden(3);
+  const amrex::Real cse169 = 523.85000000000002*crate;
+  const amrex::Real cse170 = 3.4999999999999998e-10*std::exp(-3.7599999999999998*av);
+  const amrex::Real cse171 = 0.15970000000000001*std::exp(-49550.0*cse28);
+  const amrex::Real cse172 = (1.6339999999999999e-6*std::exp(-15230.0*cse28) + 9.7930000000000004e-9*std::exp(-73.799999999999997*cse28) + 6.3460000000000002e-9*std::exp(-12.17*cse28))/std::pow(tgas, 3.0/2.0) + 2.4460185352936309e-10*std::pow(0.00071740367932898903*cse3 + 1, -cse171 - 1.7848999999999999)*std::pow(12.244387999457523*cse3 + 1, cse171 - 0.21509999999999996)/cse3;
+  const amrex::Real cse173 = cse172*nden(8);
+  const amrex::Real cse174 = std::pow(cse115, 1.1279999999999999);
+  const amrex::Real cse175 = 0.00013329999999999999*cse118 + 0.81200000000000006;
+  const amrex::Real cse176 = std::pow(cse117, -cse175)*std::pow(tgas, 0.04845);
+  const amrex::Real cse177 = cse174*(433.10000000000002*cse176 + 1);
+  const amrex::Real cse178 = 0.011078790689599145*cse177 + 1;
+  const amrex::Real cse179 = 1.0/cse178;
+  const amrex::Real cse180 = 4.5579999999999993e-11*cse179;
+  const amrex::Real cse181 = cse114*cse180;
+  const amrex::Real cse182 = -cse169*nden(7) - cse170*nden(7) + cse173*nden(2) + cse181*nden(8);
+  const amrex::Real cse183 = cse168 + cse182;
+  const amrex::Real cse184 = -cse149;
+  const amrex::Real cse185 = -cse152;
+  const amrex::Real cse186 = 5.6999999999999997e-11*cse54;
+  const amrex::Real cse187 = 1.6999999999999999e-9*nden(16);
+  const amrex::Real cse188 = cse187*nden(9);
+  const amrex::Real cse189 = cse62*nden(3);
+  const amrex::Real cse190 = 7.2000000000000002e-15*nden(6);
+  const amrex::Real cse191 = cse190*nden(3);
+  const amrex::Real cse192 = cse133 + cse191 + cse2;
+  const amrex::Real cse193 = -cse98;
+  const amrex::Real cse194 = 1.6000000000000001e-9*nden(9);
+  const amrex::Real cse195 = cse194*nden(6);
+  const amrex::Real cse196 = cse165 + cse191 + cse195 + cse92;
+  const amrex::Real cse197 = 92.0*crate;
+  const amrex::Real cse198 = cse197*nden(9);
+  const amrex::Real cse199 = 9.8999999999999995e-14*cse77;
+  const amrex::Real cse200 = cse199*nden(8);
+  const amrex::Real cse201 = cse184 + cse95;
+  const amrex::Real cse202 = 2.4e-10*std::exp(-3.8799999999999999*av);
+  const amrex::Real cse203 = cse202*nden(9);
+  const amrex::Real cse204 = cse203 - cse26;
+  const amrex::Real cse205 = 5.673e-10 + 4.1551773299893832e-8/std::sqrt(std::max(10.0, std::min(20.0, tgas)));
+  const amrex::Real cse206 = cse205*nden(15);
+  const amrex::Real cse207 = 5.673e-10 + 4.1551773299893832e-8/std::sqrt(std::max(30.0, cse85));
+  const amrex::Real cse208 = cse207*nden(15);
+  const amrex::Real cse209 = cse206*nden(8) + cse208*nden(8);
+  const amrex::Real cse210 = 98.519999999999996*crate;
+  const amrex::Real cse211 = -cse110 + cse188;
+  const amrex::Real cse212 = cse195 - cse83;
+  const amrex::Real cse213 = cse185 + cse20 + cse22;
+  const amrex::Real cse214 = cse130 + cse132 - cse136 - cse145;
+  ydot(1) = cse127 + cse14 + cse18 + cse2 + cse20 + cse22 + cse26 + cse32*cse63 - cse33*cse71 + 2*cse53 + cse55*nden(3) - cse58 + cse67*nden(2) + cse69*nden(3) + cse74 + cse79*nden(3) + cse84 + cse92 + cse99;
+  ydot(2) = cse1 + cse103 + cse107 - cse113 - cse126 + cse128 + cse91;
+  ydot(3) = -cse127 + cse130 + cse132 + cse133 - cse136 - cse145 - cse146 - cse153 - cse165 - cse183;
+  ydot(4) = -cse146 - cse168 + cse18 - cse184 - cse185 - cse186*nden(3) + cse188 - cse189*nden(0) - cse192 + 3.0000000000000002e-15*cse33*d2g*nden(0) - cse53 + 4.5427507615910105e-7*cse65*nden(16)*nden(2) - cse91 - cse99;
+  ydot(5) = cse192 + cse193;
+  ydot(6) = cse196;
+  ydot(7) = -cse196;
+  ydot(8) = cse182 + cse198 + cse200*nden(3) + cse201 + cse204 + cse81;
+  ydot(9) = -cse183 + cse195 - cse209;
+  ydot(10) = -cse204 - cse210*nden(9) - cse211 - cse212;
+  ydot(11) = cse101 + cse209 + cse211;
+  ydot(12) = cse128 + cse13 + cse198 + cse203 + cse212 + cse213;
+  ydot(13) = -cse214;
+  ydot(14) = cse214;
+  ydot(15) = -cse201 + 2.3099999999999997e-13*cse75*cse76*nden(3)*nden(8) - cse84;
+  ydot(16) = cse14 - cse209 - cse213 - cse26 - cse88;
+  ydot(17) = -cse153 - cse188 - cse193;
+  ydot(18) = -cse128 - cse146 + cse88;
 
-    // PREPROCESS_TEMP_VARS
-
-    
-    Real T = state.T;
-
-    // PREPROCESS_END
-
-    // PREPROCESS_ODE
-
-    Real x0 = 6.3999999999999996e-10*X(4);
-    Real x1 = x0*X(0);
-    Real x2 = -x1;
-    Real x3 = std::sqrt(T);
-    Real x4 = 1.0/X(2);
-    Real x5 = x3*x4;
-    Real x6 = x5*X(3);
-    Real x7 = 0.00011320754716981131*x6;
-    Real x8 = std::min(10000000000.0, x7);
-    Real x9 = x8 + 1;
-    Real x10 = 1.0/x9;
-    Real x11 = 1.6000000000000001e-9*x10;
-    Real x12 = x11*X(17);
-    Real x13 = x12*X(3);
-    Real x14 = x13*x8;
-    Real x15 = x10*X(16);
-    Real x16 = 1.99e-9*std::pow(T, -0.19);
-    Real x17 = x15*x16;
-    Real x18 = x17*X(11);
-    Real x19 = 3.5000000000000002e-11*X(15);
-    Real x20 = x19*X(11);
-    Real x21 = 3.7999999999999998e-10*std::exp(-2.6600000000000001*av);
-    Real x22 = x21*X(15);
-    Real x23 = std::max(10.0, std::min(500.0, T));
-    Real x24 = 7.9968521560975323e-10*std::pow(x23, -0.34000000000000002)*std::exp(0.11/x23);
-    Real x25 = x24*X(15);
-    Real x26 = x25*X(7);
-    Real x27 = std::pow(X(3), 2);
-    Real x28 = 1.0/T;
-    Real x29 = std::log(5.9959999999999997e-30*std::pow(T, 4.1881000000000004)*std::pow(6.7610000000000002e-6*T + 1, -5.6881000000000004)*std::exp(-54657.400000000001*x28));
-    Real x30 = M_LN10;
-    Real x31 = 1.0/x30;
-    Real x32 = 2*X(3);
-    Real x33 = x32 + X(0) + X(1) + X(10) + X(14) + X(15) + 3*X(16) + 2*X(4);
-    Real x34 = 1.0/x33;
-    Real x35 = std::log((1.0/10000.0)*T);
-    Real x36 = std::pow(x35, 2)/std::pow(x30, 2);
-    Real x37 = std::pow(10, 1.3*x31*x35 - 1.6200000000000001*x36 - 4.8449999999999998);
-    Real x38 = x34*x37;
-    Real x39 = std::pow(10, 0.41599999999999998*x31*x35 + 0.32700000000000001*x36 - 3);
-    Real x40 = x34*x39;
-    Real x41 = x38*X(3) + x40*X(0);
-    Real x42 = 1.0/x41;
-    Real x43 = std::min(1.0e+100, x42);
-    Real x44 = 1.0/x43;
-    Real x45 = x33*x44;
-    Real x46 = x45 + 1;
-    Real x47 = x31/x46;
-    Real x48 = std::log(1.3000000000000001e-9*std::exp(-53300*x28));
-    Real x49 = x45*x47;
-    Real x50 = std::pow(10, x29*x47 + x48*x49);
-    Real x51 = T > 700.0;
-    Real x52 = ((x51) ? (
-       x50
-    )
-    : (
-       0
-    ));
-    Real x53 = x27*x52;
-    Real x54 = std::exp(-4.1799999999999997*av);
-    Real x55 = 1.1399999999999999e-10*x54;
-    Real x56 = 7.5e-10*std::pow(T, -0.45800000000000002) + 4.9899999999999997e-11*std::pow(T, 0.40500000000000003);
-    Real x57 = x56*X(17);
-    Real x58 = x57*X(0);
-    Real x59 = std::log(6.6699999999999996e-12*x3*std::exp(-63590*x28 - 1));
-    Real x60 = std::log(3.5199999999999998e-9*std::exp(-43900*x28));
-    Real x61 = std::pow(10, x47*x59 + x49*x60);
-    Real x62 = ((x51) ? (
-       x61
-    )
-    : (
-       0
-    ));
-    Real x63 = x62*X(0);
-    Real x64 = std::max(10.0, std::min(300.0, T));
-    Real x65 = std::pow(x64, -0.52000000000000002);
-    Real x66 = 2.9935562710997168e-6*x65;
-    Real x67 = x66*X(16);
-    Real x68 = 3.2000000000000001e-9*x10;
-    Real x69 = x68*X(17);
-    Real x70 = 6.0000000000000005e-15*d2g;
-    Real x71 = x70*X(0);
-    Real x72 = (4.0000000000000001e-10*std::pow(T, 0.0066899999999999998) + 9.9999999999999994e-12*std::pow(T, 0.51700000000000002))*std::exp(-227*x28);
-    Real x73 = x72*X(11);
-    Real x74 = x73*X(1);
-    Real x75 = std::pow(T, -1.3);
-    Real x76 = std::exp(-23*x28);
-    Real x77 = x75*x76;
-    Real x78 = 4.2899999999999994e-13*x77;
-    Real x79 = x78*X(8);
-    Real x80 = 9.0999999999999996e-10*std::exp(-2.1200000000000001*av);
-    Real x81 = x80*X(14);
-    Real x82 = 7.0000000000000004e-11*X(14);
-    Real x83 = x82*X(11);
-    Real x84 = x81 + x83;
-    Real x85 = std::min(800.0, T);
-    Real x86 = 8.37e-10 + 6.1305895032630246e-8/std::sqrt(std::max(10.0, x85));
-    Real x87 = x86*X(15);
-    Real x88 = x87*X(6);
-    Real x89 = 1.2599999999999999e-13*std::exp(-22.5*x28);
-    Real x90 = x89*X(6);
-    Real x91 = x90*X(3);
-    Real x92 = x88 + x91;
-    Real x93 = 2.8142984982406731e-11*std::pow(x23, 0.26000000000000001);
-    Real x94 = x93*X(14);
-    Real x95 = x94*X(0);
-    Real x96 = 1.7599999999999999e-9*std::pow(T, 0.042000000000000003)*std::exp(-2.145922746781116e-5*T);
-    Real x97 = x96*X(4);
-    Real x98 = x97*X(3);
-    Real x99 = -x95 + x98;
-    Real x100 = 6.5199999999999996*crate;
-    Real x101 = x100*X(9);
-    Real x102 = crate*(1.5*x34*X(0) + 2.2999999999999998*x34*X(3));
-    Real x103 = x102*X(0);
-    Real x104 = std::log(8.6173000000000003e-5*T);
-    Real x105 = ((x51) ? (
-       5.9078447946382801e-70*std::pow(T, 13.536555999999999)*std::exp(-2.0391498499999999e-6*std::pow(x104, 8) + 0.000111954395*std::pow(x104, 7) - 0.00263197617*std::pow(x104, 6) + 0.034825597700000002*std::pow(x104, 5) - 0.28770560000000001*std::pow(x104, 4) + 1.56315498*std::pow(x104, 3) - 5.7393287500000003*std::pow(x104, 2))
-    )
-    : (
-       0
-    ));
-    Real x106 = x105*X(2);
-    Real x107 = x106*X(0);
-    Real x108 = 1.05849862170431e-5*std::pow(x64, -0.64000000000000001);
-    Real x109 = x108*X(10);
-    Real x110 = x109*X(2);
-    Real x111 = 4.8813573300130879e-6*std::pow(x28, 1.5)*std::pow(114.81344434488582*std::pow(x28, 0.40699999999999997) + 1, -2.242);
-    Real x112 = x111*X(2);
-    Real x113 = x112*X(1);
-    Real x114 = x33*d2g;
-    Real x115 = chi*x5*std::exp(-1.8700000000000001*av);
-    Real x116 = std::pow(x115, 1.3779999999999999);
-    Real x117 = 1.7*x115;
-    Real x118 = x31*std::log(T);
-    Real x119 = 1.102e-5*x118 + 0.4723;
-    Real x120 = std::pow(x117, -x119)*std::pow(T, 0.015859999999999999);
-    Real x121 = x116*(508.69999999999999*x120 + 1);
-    Real x122 = 1.6774414051711492e-5*x121 + 1;
-    Real x123 = 1.0/x122;
-    Real x124 = 1.2250000000000001e-11*x123;
-    Real x125 = x114*x124;
-    Real x126 = x125*X(1);
-    Real x127 = -x101 - x103 - x107 + x110 + x113 + x126;
-    Real x128 = x58 - x74;
-    Real x129 = 8400.0*crate;
-    Real x130 = x129*X(12);
-    Real x131 = 4.4999999999999998e-9*std::exp(-2.6099999999999999*av);
-    Real x132 = x131*X(12);
-    Real x133 = x102*x32;
-    Real x134 = 1.4595000290776864e-10*std::pow(x64, -0.62);
-    Real x135 = x134*X(13);
-    Real x136 = x135*X(2);
-    Real x137 = std::pow(x115, 1.8740000000000001);
-    Real x138 = 7.538e-5*x118 + 0.89639999999999997;
-    Real x139 = std::pow(x117, -x138)*std::pow(T, 1.635e-6);
-    Real x140 = x137*(43750.0*x139 + 1);
-    Real x141 = 1.534817233071468e-7*x140 + 1;
-    Real x142 = 1.0/x141;
-    Real x143 = 2.1659999999999999e-12*x142;
-    Real x144 = x114*x143;
-    Real x145 = x144*X(13);
-    Real x146 = x13 + x14;
-    Real x147 = 1.0537934368240927e-9*std::pow(x28, 0.00231) + std::pow(T, -1.5)*(0.00015100000000000001*std::exp(-8110.0*x28) + 2.007e-8*std::exp(-26.600000000000001*x28) + 3.4e-8*std::exp(-1.3799999999999999*x28));
-    Real x148 = x147*X(16);
-    Real x149 = x148*X(7);
-    Real x150 = 1.3007021411393064e-6*x65;
-    Real x151 = x150*X(16);
-    Real x152 = x18*x8;
-    Real x153 = x149 + x151*X(2) + x152 + x18;
-    Real x154 = 1.1000000000000001*crate;
-    Real x155 = 9.9999999999999994e-12*std::pow(T, -0.5)*(x118*(x118*(0.044330000000000001*x118 - 0.28520000000000001) - 1.6759999999999999) + 11.19);
-    Real x156 = x155*X(6);
-    Real x157 = std::pow(x115, 1.512);
-    Real x158 = 5.4939999999999998e-7*x118 + 0.49559999999999998;
-    Real x159 = std::pow(x117, -x158)*std::pow(T, 3.9029999999999999e-7);
-    Real x160 = x157*(5115.0*x159 + 1);
-    Real x161 = 7.104740267838494e-7*x160 + 1;
-    Real x162 = 1.0/x161;
-    Real x163 = 5.5720000000000001e-12*x162;
-    Real x164 = x114*x163;
-    Real x165 = -x154*X(5) + x156*X(2) + x164*X(6);
-    Real x166 = 3.2999999999999996e-13*x77;
-    Real x167 = x166*X(8);
-    Real x168 = x167*X(3);
-    Real x169 = 523.85000000000002*crate;
-    Real x170 = 3.4999999999999998e-10*std::exp(-3.7599999999999998*av);
-    Real x171 = 0.15970000000000001*std::exp(-49550.0*x28);
-    Real x172 = (1.6339999999999999e-6*std::exp(-15230.0*x28) + 9.7930000000000004e-9*std::exp(-73.799999999999997*x28) + 6.3460000000000002e-9*std::exp(-12.17*x28))/std::pow(T, 3.0/2.0) + 2.4460185352936309e-10*std::pow(0.00071740367932898903*x3 + 1, -x171 - 1.7848999999999999)*std::pow(12.244387999457523*x3 + 1, x171 - 0.21509999999999996)/x3;
-    Real x173 = x172*X(8);
-    Real x174 = std::pow(x115, 1.1279999999999999);
-    Real x175 = 0.00013329999999999999*x118 + 0.81200000000000006;
-    Real x176 = std::pow(x117, -x175)*std::pow(T, 0.04845);
-    Real x177 = x174*(433.10000000000002*x176 + 1);
-    Real x178 = 0.011078790689599145*x177 + 1;
-    Real x179 = 1.0/x178;
-    Real x180 = 4.5579999999999993e-11*x179;
-    Real x181 = x114*x180;
-    Real x182 = -x169*X(7) - x170*X(7) + x173*X(2) + x181*X(8);
-    Real x183 = x168 + x182;
-    Real x184 = -x149;
-    Real x185 = -x152;
-    Real x186 = 5.6999999999999997e-11*x54;
-    Real x187 = 1.6999999999999999e-9*X(16);
-    Real x188 = x187*X(9);
-    Real x189 = x62*X(3);
-    Real x190 = 7.2000000000000002e-15*X(6);
-    Real x191 = x190*X(3);
-    Real x192 = x133 + x191 + x2;
-    Real x193 = -x98;
-    Real x194 = 1.6000000000000001e-9*X(9);
-    Real x195 = x194*X(6);
-    Real x196 = x165 + x191 + x195 + x92;
-    Real x197 = 92.0*crate;
-    Real x198 = x197*X(9);
-    Real x199 = 9.8999999999999995e-14*x77;
-    Real x200 = x199*X(8);
-    Real x201 = x184 + x95;
-    Real x202 = 2.4e-10*std::exp(-3.8799999999999999*av);
-    Real x203 = x202*X(9);
-    Real x204 = x203 - x26;
-    Real x205 = 5.673e-10 + 4.1551773299893832e-8/std::sqrt(std::max(10.0, std::min(20.0, T)));
-    Real x206 = x205*X(15);
-    Real x207 = 5.673e-10 + 4.1551773299893832e-8/std::sqrt(std::max(30.0, x85));
-    Real x208 = x207*X(15);
-    Real x209 = x206*X(8) + x208*X(8);
-    Real x210 = 98.519999999999996*crate;
-    Real x211 = -x110 + x188;
-    Real x212 = x195 - x83;
-    Real x213 = x185 + x20 + x22;
-    Real x214 = x130 + x132 - x136 - x145;
-    ydot(1) = x127 + x14 + x18 + x2 + x20 + x22 + x26 + x32*x63 - x33*x71 + 2*x53 + x55*X(3) - x58 + x67*X(2) + x69*X(3) + x74 + x79*X(3) + x84 + x92 + x99;
-    ydot(2) = x1 + x103 + x107 - x113 - x126 + x128 + x91;
-    ydot(3) = -x127 + x130 + x132 + x133 - x136 - x145 - x146 - x153 - x165 - x183;
-    ydot(4) = -x146 - x168 + x18 - x184 - x185 - x186*X(3) + x188 - x189*X(0) - x192 + 3.0000000000000002e-15*x33*d2g*X(0) - x53 + 4.5427507615910105e-7*x65*X(16)*X(2) - x91 - x99;
-    ydot(5) = x192 + x193;
-    ydot(6) = x196;
-    ydot(7) = -x196;
-    ydot(8) = x182 + x198 + x200*X(3) + x201 + x204 + x81;
-    ydot(9) = -x183 + x195 - x209;
-    ydot(10) = -x204 - x210*X(9) - x211 - x212;
-    ydot(11) = x101 + x209 + x211;
-    ydot(12) = x128 + x13 + x198 + x203 + x212 + x213;
-    ydot(13) = -x214;
-    ydot(14) = x214;
-    ydot(15) = -x201 + 2.3099999999999997e-13*x75*x76*X(3)*X(8) - x84;
-    ydot(16) = x14 - x209 - x213 - x26 - x88;
-    ydot(17) = -x153 - x188 - x193;
-    ydot(18) = -x128 - x146 + x88;
-
-    // PREPROCESS_END
-
-
+  // PREPROCESS_END
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_INLINE void
+actual_rhs(burn_t &state, amrex::Array1D<amrex::Real, 1, neqs> &ydot) {
 
-AMREX_GPU_HOST_DEVICE AMREX_INLINE
-Real rhs_eint(const burn_t& state,
-             const Array1D<Real, 0, NumSpec-1>& X,
-             Real const crate, Real const av,
-             Real const d2g, Real const chi) 
-             {
+  amrex::Array1D<amrex::Real, 0, NumSpec - 1> nden;
+  for (int i = 0; i < NumSpec; ++i) {
+    nden(i) = state.xn[i];
+  }
 
-    using namespace Rates;
-    
-    // PREPROCESS_TEMP_VARS
-
-    
-    Real T = state.T;
-
-    // PREPROCESS_END
-    
-    // PREPROCESS_DEDT
-
-    return 0;
-
-    // PREPROCESS_END
-    
+  // YDOTS
+  rhs_specie(state, ydot, nden);
 }
 
+template <class MatrixType>
+AMREX_GPU_HOST_DEVICE AMREX_INLINE void
+jac_chem(const burn_t &state, MatrixType &jac,
+         const amrex::Array1D<amrex::Real, 0, NumSpec - 1> &nden) {
 
-AMREX_GPU_HOST_DEVICE AMREX_INLINE
-void actual_rhs (burn_t& state, Array1D<Real, 1, neqs>& ydot)
-{
+  amrex::Real tgas = state.T;
+  //amrex::Real crate = 0.0; // placeholder
+  //amrex::Real av = 0.0;    // placeholder
+  amrex::Real crate = network_rp::crate;
+  amrex::Real av = network_rp::Av;
+  amrex::Real d2g = network_rp::dust2gas_ratio;
+  amrex::Real chi = network_rp::chi;
 
-    Real crate = network_rp::crate;
-    Real av = network_rp::Av;
-    Real d2g = network_rp::dust2gas_ratio;
-    Real chi = network_rp::chi;
-    
-    Real Tdust = 10;  //10 Kelvin
 
-    Array1D<Real, 0, NumSpec-1> X;
-    for (int i = 0; i < NumSpec; ++i) {
-           X(i) = state.xn[i];
-    }
-    // YDOTS
+  // PREPROCESS_JACOBIAN
 
-    rhs_specie(state, ydot, X, crate, av, d2g, chi, Tdust);
+  const amrex::Real cse0 = 6.3999999999999996e-10*nden(4);
+  const amrex::Real cse3 = std::sqrt(tgas);
+  const amrex::Real cse4 = 1.0/nden(2);
+  const amrex::Real cse5 = cse3*cse4;
+  const amrex::Real cse6 = cse5*nden(3);
+  const amrex::Real cse7 = 0.00011320754716981131*cse6;
+  const amrex::Real cse8 = std::min(10000000000.0, cse7);
+  const amrex::Real cse9 = cse8 + 1;
+  const amrex::Real cse10 = 1.0/cse9;
+  const amrex::Real cse11 = 1.6000000000000001e-9*cse10;
+  const amrex::Real cse12 = cse11*nden(17);
+  const amrex::Real cse15 = cse10*nden(16);
+  const amrex::Real cse16 = 1.99e-9*std::pow(tgas, -0.19);
+  const amrex::Real cse17 = cse15*cse16;
+  const amrex::Real cse19 = 3.5000000000000002e-11*nden(15);
+  const amrex::Real cse21 = 3.7999999999999998e-10*std::exp(-2.6600000000000001*av);
+  const amrex::Real cse23 = std::max(10.0, std::min(500.0, tgas));
+  const amrex::Real cse24 = 7.9968521560975323e-10*std::pow(cse23, -0.34000000000000002)*std::exp(0.11/cse23);
+  const amrex::Real cse25 = cse24*nden(15);
+  const amrex::Real cse27 = std::pow(nden(3), 2);
+  const amrex::Real cse28 = 1.0/tgas;
+  const amrex::Real cse29 = std::log(5.9959999999999997e-30*std::pow(tgas, 4.1881000000000004)*std::pow(6.7610000000000002e-6*tgas + 1, -5.6881000000000004)*std::exp(-54657.400000000001*cse28));
+  const amrex::Real cse30 = M_LN10;
+  const amrex::Real cse31 = 1.0/cse30;
+  const amrex::Real cse32 = 2*nden(3);
+  const amrex::Real cse33 = cse32 + nden(0) + nden(1) + nden(10) + nden(14) + nden(15) + 3*nden(16) + 2*nden(4);
+  const amrex::Real cse34 = 1.0/cse33;
+  const amrex::Real cse35 = std::log((1.0/10000.0)*tgas);
+  const amrex::Real cse36 = std::pow(cse35, 2)/std::pow(cse30, 2);
+  const amrex::Real cse37 = std::pow(10, 1.3*cse31*cse35 - 1.6200000000000001*cse36 - 4.8449999999999998);
+  const amrex::Real cse38 = cse34*cse37;
+  const amrex::Real cse39 = std::pow(10, 0.41599999999999998*cse31*cse35 + 0.32700000000000001*cse36 - 3);
+  const amrex::Real cse40 = cse34*cse39;
+  const amrex::Real cse41 = cse38*nden(3) + cse40*nden(0);
+  const amrex::Real cse42 = 1.0/cse41;
+  const amrex::Real cse43 = std::min(1.0e+100, cse42);
+  const amrex::Real cse44 = 1.0/cse43;
+  const amrex::Real cse45 = cse33*cse44;
+  const amrex::Real cse46 = cse45 + 1;
+  const amrex::Real cse47 = cse31/cse46;
+  const amrex::Real cse48 = std::log(1.3000000000000001e-9*std::exp(-53300*cse28));
+  const amrex::Real cse49 = cse45*cse47;
+  const amrex::Real cse50 = std::pow(10, cse29*cse47 + cse48*cse49);
+  const amrex::Real cse51 = tgas > 700.0;
+  const amrex::Real cse52 = ((cse51) ? (
+     cse50
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse54 = std::exp(-4.1799999999999997*av);
+  const amrex::Real cse55 = 1.1399999999999999e-10*cse54;
+  const amrex::Real cse56 = 7.5e-10*std::pow(tgas, -0.45800000000000002) + 4.9899999999999997e-11*std::pow(tgas, 0.40500000000000003);
+  const amrex::Real cse57 = cse56*nden(17);
+  const amrex::Real cse59 = std::log(6.6699999999999996e-12*cse3*std::exp(-63590*cse28 - 1));
+  const amrex::Real cse60 = std::log(3.5199999999999998e-9*std::exp(-43900*cse28));
+  const amrex::Real cse61 = std::pow(10, cse47*cse59 + cse49*cse60);
+  const amrex::Real cse62 = ((cse51) ? (
+     cse61
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse63 = cse62*nden(0);
+  const amrex::Real cse64 = std::max(10.0, std::min(300.0, tgas));
+  const amrex::Real cse65 = std::pow(cse64, -0.52000000000000002);
+  const amrex::Real cse66 = 2.9935562710997168e-6*cse65;
+  const amrex::Real cse67 = cse66*nden(16);
+  const amrex::Real cse68 = 3.2000000000000001e-9*cse10;
+  const amrex::Real cse69 = cse68*nden(17);
+  const amrex::Real cse70 = 6.0000000000000005e-15*d2g;
+  const amrex::Real cse71 = cse70*nden(0);
+  const amrex::Real cse72 = (4.0000000000000001e-10*std::pow(tgas, 0.0066899999999999998) + 9.9999999999999994e-12*std::pow(tgas, 0.51700000000000002))*std::exp(-227*cse28);
+  const amrex::Real cse73 = cse72*nden(11);
+  const amrex::Real cse75 = std::pow(tgas, -1.3);
+  const amrex::Real cse76 = std::exp(-23*cse28);
+  const amrex::Real cse77 = cse75*cse76;
+  const amrex::Real cse78 = 4.2899999999999994e-13*cse77;
+  const amrex::Real cse79 = cse78*nden(8);
+  const amrex::Real cse80 = 9.0999999999999996e-10*std::exp(-2.1200000000000001*av);
+  const amrex::Real cse82 = 7.0000000000000004e-11*nden(14);
+  const amrex::Real cse85 = std::min(800.0, tgas);
+  const amrex::Real cse86 = 8.37e-10 + 6.1305895032630246e-8/std::sqrt(std::max(10.0, cse85));
+  const amrex::Real cse87 = cse86*nden(15);
+  const amrex::Real cse89 = 1.2599999999999999e-13*std::exp(-22.5*cse28);
+  const amrex::Real cse90 = cse89*nden(6);
+  const amrex::Real cse93 = 2.8142984982406731e-11*std::pow(cse23, 0.26000000000000001);
+  const amrex::Real cse94 = cse93*nden(14);
+  const amrex::Real cse96 = 1.7599999999999999e-9*std::pow(tgas, 0.042000000000000003)*std::exp(-2.145922746781116e-5*tgas);
+  const amrex::Real cse97 = cse96*nden(4);
+  const amrex::Real cse100 = 6.5199999999999996*crate;
+  const amrex::Real cse102 = crate*(1.5*cse34*nden(0) + 2.2999999999999998*cse34*nden(3));
+  const amrex::Real cse104 = std::log(8.6173000000000003e-5*tgas);
+  const amrex::Real cse105 = ((cse51) ? (
+     5.9078447946382801e-70*std::pow(tgas, 13.536555999999999)*std::exp(-2.0391498499999999e-6*std::pow(cse104, 8) + 0.000111954395*std::pow(cse104, 7) - 0.00263197617*std::pow(cse104, 6) + 0.034825597700000002*std::pow(cse104, 5) - 0.28770560000000001*std::pow(cse104, 4) + 1.56315498*std::pow(cse104, 3) - 5.7393287500000003*std::pow(cse104, 2))
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse106 = cse105*nden(2);
+  const amrex::Real cse108 = 1.05849862170431e-5*std::pow(cse64, -0.64000000000000001);
+  const amrex::Real cse109 = cse108*nden(10);
+  const amrex::Real cse111 = 4.8813573300130879e-6*std::pow(cse28, 1.5)*std::pow(114.81344434488582*std::pow(cse28, 0.40699999999999997) + 1, -2.242);
+  const amrex::Real cse112 = cse111*nden(2);
+  const amrex::Real cse114 = cse33*d2g;
+  const amrex::Real cse115 = chi*cse5*std::exp(-1.8700000000000001*av);
+  const amrex::Real cse116 = std::pow(cse115, 1.3779999999999999);
+  const amrex::Real cse117 = 1.7*cse115;
+  const amrex::Real cse118 = cse31*std::log(tgas);
+  const amrex::Real cse119 = 1.102e-5*cse118 + 0.4723;
+  const amrex::Real cse120 = std::pow(cse117, -cse119)*std::pow(tgas, 0.015859999999999999);
+  const amrex::Real cse121 = cse116*(508.69999999999999*cse120 + 1);
+  const amrex::Real cse122 = 1.6774414051711492e-5*cse121 + 1;
+  const amrex::Real cse123 = 1.0/cse122;
+  const amrex::Real cse124 = 1.2250000000000001e-11*cse123;
+  const amrex::Real cse125 = cse114*cse124;
+  const amrex::Real cse129 = 8400.0*crate;
+  const amrex::Real cse131 = 4.4999999999999998e-9*std::exp(-2.6099999999999999*av);
+  const amrex::Real cse134 = 1.4595000290776864e-10*std::pow(cse64, -0.62);
+  const amrex::Real cse135 = cse134*nden(13);
+  const amrex::Real cse137 = std::pow(cse115, 1.8740000000000001);
+  const amrex::Real cse138 = 7.538e-5*cse118 + 0.89639999999999997;
+  const amrex::Real cse139 = std::pow(cse117, -cse138)*std::pow(tgas, 1.635e-6);
+  const amrex::Real cse140 = cse137*(43750.0*cse139 + 1);
+  const amrex::Real cse141 = 1.534817233071468e-7*cse140 + 1;
+  const amrex::Real cse142 = 1.0/cse141;
+  const amrex::Real cse143 = 2.1659999999999999e-12*cse142;
+  const amrex::Real cse144 = cse114*cse143;
+  const amrex::Real cse147 = 1.0537934368240927e-9*std::pow(cse28, 0.00231) + std::pow(tgas, -1.5)*(0.00015100000000000001*std::exp(-8110.0*cse28) + 2.007e-8*std::exp(-26.600000000000001*cse28) + 3.4e-8*std::exp(-1.3799999999999999*cse28));
+  const amrex::Real cse148 = cse147*nden(16);
+  const amrex::Real cse150 = 1.3007021411393064e-6*cse65;
+  const amrex::Real cse151 = cse150*nden(16);
+  const amrex::Real cse154 = 1.1000000000000001*crate;
+  const amrex::Real cse155 = 9.9999999999999994e-12*std::pow(tgas, -0.5)*(cse118*(cse118*(0.044330000000000001*cse118 - 0.28520000000000001) - 1.6759999999999999) + 11.19);
+  const amrex::Real cse156 = cse155*nden(6);
+  const amrex::Real cse157 = std::pow(cse115, 1.512);
+  const amrex::Real cse158 = 5.4939999999999998e-7*cse118 + 0.49559999999999998;
+  const amrex::Real cse159 = std::pow(cse117, -cse158)*std::pow(tgas, 3.9029999999999999e-7);
+  const amrex::Real cse160 = cse157*(5115.0*cse159 + 1);
+  const amrex::Real cse161 = 7.104740267838494e-7*cse160 + 1;
+  const amrex::Real cse162 = 1.0/cse161;
+  const amrex::Real cse163 = 5.5720000000000001e-12*cse162;
+  const amrex::Real cse164 = cse114*cse163;
+  const amrex::Real cse166 = 3.2999999999999996e-13*cse77;
+  const amrex::Real cse167 = cse166*nden(8);
+  const amrex::Real cse169 = 523.85000000000002*crate;
+  const amrex::Real cse170 = 3.4999999999999998e-10*std::exp(-3.7599999999999998*av);
+  const amrex::Real cse171 = 0.15970000000000001*std::exp(-49550.0*cse28);
+  const amrex::Real cse172 = (1.6339999999999999e-6*std::exp(-15230.0*cse28) + 9.7930000000000004e-9*std::exp(-73.799999999999997*cse28) + 6.3460000000000002e-9*std::exp(-12.17*cse28))/std::pow(tgas, 3.0/2.0) + 2.4460185352936309e-10*std::pow(0.00071740367932898903*cse3 + 1, -cse171 - 1.7848999999999999)*std::pow(12.244387999457523*cse3 + 1, cse171 - 0.21509999999999996)/cse3;
+  const amrex::Real cse173 = cse172*nden(8);
+  const amrex::Real cse174 = std::pow(cse115, 1.1279999999999999);
+  const amrex::Real cse175 = 0.00013329999999999999*cse118 + 0.81200000000000006;
+  const amrex::Real cse176 = std::pow(cse117, -cse175)*std::pow(tgas, 0.04845);
+  const amrex::Real cse177 = cse174*(433.10000000000002*cse176 + 1);
+  const amrex::Real cse178 = 0.011078790689599145*cse177 + 1;
+  const amrex::Real cse179 = 1.0/cse178;
+  const amrex::Real cse180 = 4.5579999999999993e-11*cse179;
+  const amrex::Real cse181 = cse114*cse180;
+  const amrex::Real cse186 = 5.6999999999999997e-11*cse54;
+  const amrex::Real cse187 = 1.6999999999999999e-9*nden(16);
+  const amrex::Real cse189 = cse62*nden(3);
+  const amrex::Real cse190 = 7.2000000000000002e-15*nden(6);
+  const amrex::Real cse194 = 1.6000000000000001e-9*nden(9);
+  const amrex::Real cse197 = 92.0*crate;
+  const amrex::Real cse199 = 9.8999999999999995e-14*cse77;
+  const amrex::Real cse200 = cse199*nden(8);
+  const amrex::Real cse202 = 2.4e-10*std::exp(-3.8799999999999999*av);
+  const amrex::Real cse205 = 5.673e-10 + 4.1551773299893832e-8/std::sqrt(std::max(10.0, std::min(20.0, tgas)));
+  const amrex::Real cse206 = cse205*nden(15);
+  const amrex::Real cse207 = 5.673e-10 + 4.1551773299893832e-8/std::sqrt(std::max(30.0, cse85));
+  const amrex::Real cse208 = cse207*nden(15);
+  const amrex::Real cse210 = 98.519999999999996*crate;
+  const amrex::Real cse215 = cse44*cse47;
+  const amrex::Real cse216 = cse215*cse48;
+  const amrex::Real cse217 = std::pow(cse33, -2);
+  const amrex::Real cse218 = cse217*nden(3);
+  const amrex::Real cse219 = cse218*cse37;
+  const amrex::Real cse220 = cse217*nden(0);
+  const amrex::Real cse221 = cse220*cse39;
+  const amrex::Real cse222 = cse219 + cse221;
+  const amrex::Real cse223 = cse222 - cse40;
+  const amrex::Real cse224 = std::pow(cse41, -2);
+  const amrex::Real cse225 = std::pow(cse43, -2);
+  const amrex::Real cse226 = (((cse42 - 1.0e+100 > 0) ? (
+     0
+  )
+  : ((cse42 - 1.0e+100 == 0) ? (
+     1.0/2.0
+  )
+  : (
+     1
+  ))));
+  const amrex::Real cse227 = cse224*cse225*cse226*cse33;
+  const amrex::Real cse228 = cse223*cse227*cse47;
+  const amrex::Real cse229 = cse31/std::pow(cse46, 2);
+  const amrex::Real cse230 = cse229*(cse223*cse224*cse225*cse226*cse33 - cse44);
+  const amrex::Real cse231 = cse230*cse45;
+  const amrex::Real cse232 = cse30*cse50;
+  const amrex::Real cse233 = ((cse51) ? (
+     cse232*(cse216 - cse228*cse48 + cse230*cse29 + cse231*cse48)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse234 = cse215*cse60;
+  const amrex::Real cse235 = cse30*cse61;
+  const amrex::Real cse236 = ((cse51) ? (
+     cse235*(-cse228*cse60 + cse230*cse59 + cse231*cse60 + cse234)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse237 = d2g*nden(1);
+  const amrex::Real cse238 = cse124*cse237;
+  const amrex::Real cse239 = -cse238;
+  const amrex::Real cse240 = 2.2999999999999998*cse218 + 1.5*cse220;
+  const amrex::Real cse241 = -cse240 + 1.5*cse34;
+  const amrex::Real cse242 = crate*nden(0);
+  const amrex::Real cse243 = cse102 + cse106 + cse239 + cse241*cse242;
+  const amrex::Real cse244 = cse0 + cse243 + cse57;
+  const amrex::Real cse245 = -cse240;
+  const amrex::Real cse246 = cse242*cse245;
+  const amrex::Real cse247 = cse238 - cse246;
+  const amrex::Real cse248 = cse112 + cse125 + cse247;
+  const amrex::Real cse249 = cse248 + cse73;
+  const amrex::Real cse250 = cse222*cse227;
+  const amrex::Real cse251 = cse250*cse47;
+  const amrex::Real cse252 = cse229*(cse250 - cse44);
+  const amrex::Real cse253 = cse252*cse45;
+  const amrex::Real cse254 = cse27*((cse51) ? (
+     cse232*(cse216 - cse251*cse48 + cse252*cse29 + cse253*cse48)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse255 = -cse71;
+  const amrex::Real cse256 = ((cse51) ? (
+     cse235*(cse234 - cse251*cse60 + cse252*cse59 + cse253*cse60)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse257 = cse32*nden(0);
+  const amrex::Real cse258 = 2*cse254 + cse255 + cse256*cse257;
+  const amrex::Real cse259 = std::pow(cse9, -2);
+  const amrex::Real cse260 = cse259*nden(16);
+  const amrex::Real cse261 = std::pow(nden(2), -2);
+  const amrex::Real cse262 = (((cse7 - 10000000000.0 > 0) ? (
+     0
+  )
+  : ((cse7 - 10000000000.0 == 0) ? (
+     1.0/2.0
+  )
+  : (
+     1
+  ))));
+  const amrex::Real cse263 = 2.2528301886792451e-13*cse262*std::pow(tgas, 0.31)*nden(11);
+  const amrex::Real cse264 = cse261*cse263*nden(3);
+  const amrex::Real cse265 = cse260*cse264;
+  const amrex::Real cse266 = cse262*nden(17);
+  const amrex::Real cse267 = cse259*cse266;
+  const amrex::Real cse268 = 3.6226415094339619e-13*cse267;
+  const amrex::Real cse269 = cse261*cse27*cse3;
+  const amrex::Real cse270 = 1.811320754716981e-13*cse269;
+  const amrex::Real cse271 = cse10*cse266;
+  const amrex::Real cse272 = cse270*cse271;
+  const amrex::Real cse273 = cse267*cse270;
+  const amrex::Real cse274 = cse273*cse8;
+  const amrex::Real cse275 = -cse272 + cse274;
+  const amrex::Real cse276 = -cse105*nden(0) + cse111*nden(1) + 1.2250000000000001e-11*cse114*nden(1)*(-0.0085331444281056355*cse116*cse119*cse120*cse4 + 2.3115142563258434e-5*cse121*cse4)/std::pow(cse122, 2);
+  const amrex::Real cse277 = cse109 + cse276;
+  const amrex::Real cse278 = d2g*nden(0);
+  const amrex::Real cse279 = -1.2000000000000001e-14*cse278;
+  const amrex::Real cse280 = 2*cse44;
+  const amrex::Real cse281 = cse280*cse47;
+  const amrex::Real cse282 = cse281*cse48;
+  const amrex::Real cse283 = cse217*cse32*cse37 + 2*cse221;
+  const amrex::Real cse284 = cse283 - cse38;
+  const amrex::Real cse285 = cse227*cse284*cse47;
+  const amrex::Real cse286 = cse229*(cse224*cse225*cse226*cse284*cse33 - cse280);
+  const amrex::Real cse287 = cse286*cse45;
+  const amrex::Real cse288 = cse27*((cse51) ? (
+     cse232*(cse282 - cse285*cse48 + cse286*cse29 + cse287*cse48)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse289 = cse281*cse60;
+  const amrex::Real cse290 = ((cse51) ? (
+     cse235*(-cse285*cse60 + cse286*cse59 + cse287*cse60 + cse289)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse291 = 1.811320754716981e-13*cse6;
+  const amrex::Real cse292 = cse267*cse291;
+  const amrex::Real cse293 = cse12*cse8 + cse271*cse291 - cse292*cse8;
+  const amrex::Real cse294 = cse123*cse237;
+  const amrex::Real cse295 = 2.4500000000000003e-11*cse294;
+  const amrex::Real cse296 = 4.5999999999999996*cse218 + 3.0*cse220;
+  const amrex::Real cse297 = -cse296 + 2.2999999999999998*cse34;
+  const amrex::Real cse298 = cse242*cse297;
+  const amrex::Real cse299 = cse263*cse4;
+  const amrex::Real cse300 = cse260*cse299;
+  const amrex::Real cse301 = cse295 - cse298 - cse300;
+  const amrex::Real cse302 = cse227*cse283;
+  const amrex::Real cse303 = cse302*cse47;
+  const amrex::Real cse304 = cse229*(-cse280 + cse302);
+  const amrex::Real cse305 = cse304*cse45;
+  const amrex::Real cse306 = cse27*((cse51) ? (
+     cse232*(cse282 + cse29*cse304 - cse303*cse48 + cse305*cse48)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse307 = ((cse51) ? (
+     cse235*(cse289 - cse303*cse60 + cse304*cse59 + cse305*cse60)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse308 = -cse296;
+  const amrex::Real cse309 = cse242*cse308;
+  const amrex::Real cse310 = cse295 - cse309;
+  const amrex::Real cse311 = cse96*nden(3);
+  const amrex::Real cse312 = 6.3999999999999996e-10*nden(0);
+  const amrex::Real cse313 = cse311 - cse312;
+  const amrex::Real cse314 = cse89*nden(3);
+  const amrex::Real cse315 = cse314 + cse87;
+  const amrex::Real cse316 = cse108*nden(2);
+  const amrex::Real cse317 = cse247 + cse316;
+  const amrex::Real cse318 = cse72*nden(1);
+  const amrex::Real cse319 = cse318 + cse82;
+  const amrex::Real cse320 = 7.0000000000000004e-11*nden(11);
+  const amrex::Real cse321 = cse93*nden(0);
+  const amrex::Real cse322 = -cse321;
+  const amrex::Real cse323 = cse247 + cse258;
+  const amrex::Real cse324 = cse86*nden(6);
+  const amrex::Real cse325 = cse24*nden(7);
+  const amrex::Real cse326 = cse21 + 3.5000000000000002e-11*nden(11);
+  const amrex::Real cse327 = cse324 + cse325 + cse326;
+  const amrex::Real cse328 = 3*cse44;
+  const amrex::Real cse329 = cse328*cse47;
+  const amrex::Real cse330 = cse227*(3*cse219 + 3*cse221);
+  const amrex::Real cse331 = cse330*cse47;
+  const amrex::Real cse332 = cse229*(-cse328 + cse330);
+  const amrex::Real cse333 = cse332*cse45;
+  const amrex::Real cse334 = cse27*((cse51) ? (
+     cse232*(cse29*cse332 + cse329*cse48 - cse331*cse48 + cse333*cse48)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse335 = ((cse51) ? (
+     cse235*(cse329*cse60 - cse331*cse60 + cse332*cse59 + cse333*cse60)
+  )
+  : (
+     0
+  ));
+  const amrex::Real cse336 = cse10*cse16*nden(11);
+  const amrex::Real cse337 = -6.8999999999999995*cse218 - 4.5*cse220;
+  const amrex::Real cse338 = cse242*cse337;
+  const amrex::Real cse339 = 3.6750000000000002e-11*cse294;
+  const amrex::Real cse340 = cse336 - cse338 + cse339;
+  const amrex::Real cse341 = cse56*nden(0);
+  const amrex::Real cse342 = cse11*nden(3);
+  const amrex::Real cse343 = cse342*cse8;
+  const amrex::Real cse344 = -cse295;
+  const amrex::Real cse345 = cse239 + cse246;
+  const amrex::Real cse346 = crate*cse32;
+  const amrex::Real cse347 = cse241*cse346;
+  const amrex::Real cse348 = d2g*nden(13);
+  const amrex::Real cse349 = cse143*cse348;
+  const amrex::Real cse350 = -cse349;
+  const amrex::Real cse351 = d2g*nden(6);
+  const amrex::Real cse352 = cse163*cse351;
+  const amrex::Real cse353 = -cse352;
+  const amrex::Real cse354 = d2g*nden(8);
+  const amrex::Real cse355 = cse180*cse354;
+  const amrex::Real cse356 = -cse355;
+  const amrex::Real cse357 = cse245*cse346;
+  const amrex::Real cse358 = cse349 + cse352 + cse355 - cse357;
+  const amrex::Real cse359 = 5.5720000000000001e-12*cse114*nden(6)*(-0.0036340746469993896*cse157*cse158*cse159*cse4 + 1.0742367284971802e-6*cse160*cse4)/std::pow(cse161, 2) + cse156;
+  const amrex::Real cse360 = 4.5579999999999993e-11*cse114*nden(8)*(-4.7982242476653898*cse174*cse175*cse176*cse4 + 0.012496875897867835*cse177*cse4)/std::pow(cse178, 2) + cse173;
+  const amrex::Real cse361 = 2.1659999999999999e-12*cse114*nden(13)*(-0.0067148253946876721*cse137*cse138*cse139*cse4 + 2.8762474947759312e-7*cse140*cse4)/std::pow(cse141, 2) + cse135;
+  const amrex::Real cse362 = cse273 + cse275;
+  const amrex::Real cse363 = cse15*cse264;
+  const amrex::Real cse364 = cse265*cse8;
+  const amrex::Real cse365 = cse265 - cse363 + cse364;
+  const amrex::Real cse366 = cse151 + cse365;
+  const amrex::Real cse367 = 2*cse102;
+  const amrex::Real cse368 = cse297*cse346;
+  const amrex::Real cse369 = cse179*cse354;
+  const amrex::Real cse370 = 9.1159999999999986e-11*cse369;
+  const amrex::Real cse371 = cse167 + cse370;
+  const amrex::Real cse372 = cse15*cse299;
+  const amrex::Real cse373 = cse300*cse8;
+  const amrex::Real cse374 = cse372 - cse373;
+  const amrex::Real cse375 = cse293 + cse374;
+  const amrex::Real cse376 = cse12 - cse292;
+  const amrex::Real cse377 = cse162*cse351;
+  const amrex::Real cse378 = 1.1144e-11*cse377;
+  const amrex::Real cse379 = cse142*cse348;
+  const amrex::Real cse380 = 4.3319999999999997e-12*cse379;
+  const amrex::Real cse381 = cse378 + cse380;
+  const amrex::Real cse382 = cse308*cse346;
+  const amrex::Real cse383 = -cse382;
+  const amrex::Real cse384 = cse155*nden(2) + cse164;
+  const amrex::Real cse385 = -cse148;
+  const amrex::Real cse386 = cse169 + cse170;
+  const amrex::Real cse387 = cse166*nden(3);
+  const amrex::Real cse388 = cse172*nden(2) + cse181;
+  const amrex::Real cse389 = cse387 + cse388;
+  const amrex::Real cse390 = cse17*cse8;
+  const amrex::Real cse391 = cse17 + cse390;
+  const amrex::Real cse392 = -cse391;
+  const amrex::Real cse393 = cse129 + cse131;
+  const amrex::Real cse394 = cse134*nden(2) + cse144;
+  const amrex::Real cse395 = -cse394;
+  const amrex::Real cse396 = -cse247 - cse358;
+  const amrex::Real cse397 = 1.3673999999999998e-10*cse369;
+  const amrex::Real cse398 = cse147*nden(7);
+  const amrex::Real cse399 = cse150*nden(2);
+  const amrex::Real cse400 = cse336*cse8;
+  const amrex::Real cse401 = cse337*cse346;
+  const amrex::Real cse402 = -cse401;
+  const amrex::Real cse403 = 6.4979999999999992e-12*cse379;
+  const amrex::Real cse404 = 1.6715999999999999e-11*cse377;
+  const amrex::Real cse405 = cse342 + cse343;
+  const amrex::Real cse406 = -cse405;
+  const amrex::Real cse407 = -3.0000000000000002e-15*d2g*nden(0);
+  const amrex::Real cse408 = -cse94;
+  const amrex::Real cse409 = nden(0)*nden(3);
+  const amrex::Real cse410 = -cse0 + cse347;
+  const amrex::Real cse411 = cse254 + cse256*cse409 + cse357 + cse407;
+  const amrex::Real cse412 = -cse411;
+  const amrex::Real cse413 = 4.5427507615910105e-7*cse65;
+  const amrex::Real cse414 = cse272 - cse274;
+  const amrex::Real cse415 = cse190 + cse90;
+  const amrex::Real cse416 = cse367 + cse368;
+  const amrex::Real cse417 = cse300 - cse372 + cse373 + cse97;
+  const amrex::Real cse418 = cse293 + cse376;
+  const amrex::Real cse419 = 7.2000000000000002e-15*nden(3);
+  const amrex::Real cse420 = 1.6999999999999999e-9*nden(9);
+  const amrex::Real cse421 = cse336 + cse398 + cse400 + cse420;
+  const amrex::Real cse422 = cse378 + cse415;
+  const amrex::Real cse423 = cse194 + cse315 + cse384 + cse419;
+  const amrex::Real cse424 = 1.6000000000000001e-9*nden(6);
+  const amrex::Real cse425 = cse324 + cse352;
+  const amrex::Real cse426 = cse197 + cse202;
+  const amrex::Real cse427 = cse321 + cse80;
+  const amrex::Real cse428 = cse206 + cse208;
+  const amrex::Real cse429 = cse205*nden(8) + cse207*nden(8);
+  const amrex::Real cse430 = cse363 - cse364;
+  const amrex::Real cse431 = -cse19 + cse390;
+  const amrex::Real cse432 = -cse380;
+  const amrex::Real cse433 = 2.3099999999999997e-13*cse77;
+  jac(1, 1) = 2*cse233*cse27 + 2*cse236*nden(0)*nden(3) - cse244 - cse33*cse70 + 2*cse62*nden(3) - cse71 - cse94;
+  jac(1, 2) = cse249 + cse258;
+  jac(1, 3) = cse265 + cse268*cse269 + cse275 + cse277 + cse67;
+  jac(1, 4) = cse257*cse290 - cse268*cse6 + cse279 + 2*cse288 + cse293 + cse301 + 4*cse52*nden(3) + cse55 + 2*cse63 + cse69 + cse79 + cse90 + cse97;
+  jac(1, 5) = cse257*cse307 + cse279 + 2*cse306 + cse310 + cse313;
+  jac(1, 7) = cse315;
+  jac(1, 8) = cse25;
+  jac(1, 9) = cse78*nden(3);
+  jac(1, 10) = -cse100;
+  jac(1, 11) = cse258 + cse317;
+  jac(1, 12) = cse17 + cse19 + cse319;
+  jac(1, 15) = cse320 + cse322 + cse323 + cse80;
+  jac(1, 16) = cse323 + cse327;
+  jac(1, 17) = cse257*cse335 - 1.8000000000000002e-14*cse278 + 2*cse334 + cse340 + cse66*nden(2);
+  jac(1, 18) = -cse341 + cse343 + cse68*nden(3);
+  jac(2, 1) = cse244;
+  jac(2, 2) = -cse249;
+  jac(2, 3) = -cse276;
+  jac(2, 4) = cse298 + cse344 + cse90;
+  jac(2, 5) = cse309 + cse312 + cse344;
+  jac(2, 7) = cse314;
+  jac(2, 11) = cse345;
+  jac(2, 12) = -cse318;
+  jac(2, 15) = cse345;
+  jac(2, 16) = cse345;
+  jac(2, 17) = cse338 - cse339;
+  jac(2, 18) = cse341;
+  jac(3, 1) = cse243 + cse347 + cse350 + cse353 + cse356;
+  jac(3, 2) = -cse248 - cse358;
+  jac(3, 3) = -cse277 - cse359 - cse360 - cse361 - cse362 - cse366;
+  jac(3, 4) = -cse301 + cse367 + cse368 - cse371 - cse375 - cse376 - cse381;
+  jac(3, 5) = -cse310 - cse370 - cse381 - cse383;
+  jac(3, 6) = cse154;
+  jac(3, 7) = -cse384;
+  jac(3, 8) = cse385 + cse386;
+  jac(3, 9) = -cse389;
+  jac(3, 10) = cse100;
+  jac(3, 11) = -cse317 - cse358;
+  jac(3, 12) = cse392;
+  jac(3, 13) = cse393;
+  jac(3, 14) = cse395;
+  jac(3, 15) = cse396;
+  jac(3, 16) = cse396;
+  jac(3, 17) = -cse340 - cse397 - cse398 - cse399 - cse400 - cse402 - cse403 - cse404;
+  jac(3, 18) = cse406;
+  jac(4, 1) = -cse189 - cse233*cse27 - cse236*cse409 + 3.0000000000000002e-15*cse33*d2g - cse407 - cse408 - cse410;
+  jac(4, 2) = cse412;
+  jac(4, 3) = -cse273 + cse365 + cse413*nden(16) + cse414;
+  jac(4, 4) = -cse167 - cse186 - cse255 - cse288 - cse290*cse409 - cse32*cse52 - cse415 - cse416 - cse417 - cse418 - cse63;
+  jac(4, 5) = -cse255 - cse306 - cse307*cse409 - cse313 - cse382;
+  jac(4, 7) = -cse314 - cse419;
+  jac(4, 8) = cse148;
+  jac(4, 9) = -cse387;
+  jac(4, 10) = cse187;
+  jac(4, 11) = cse412;
+  jac(4, 12) = cse391;
+  jac(4, 15) = -cse322 - cse411;
+  jac(4, 16) = cse412;
+  jac(4, 17) = 9.0000000000000011e-15*cse278 - cse334 - cse335*cse409 + cse402 + cse413*nden(2) + cse421;
+  jac(4, 18) = cse406;
+  jac(5, 1) = cse410;
+  jac(5, 2) = cse357;
+  jac(5, 4) = cse190 + cse416 - cse97;
+  jac(5, 5) = -cse311 - cse312 - cse383;
+  jac(5, 7) = cse419;
+  jac(5, 11) = cse357;
+  jac(5, 15) = cse357;
+  jac(5, 16) = cse357;
+  jac(5, 17) = cse401;
+  jac(6, 1) = cse352;
+  jac(6, 2) = cse352;
+  jac(6, 3) = cse359;
+  jac(6, 4) = cse422;
+  jac(6, 5) = cse378;
+  jac(6, 6) = -cse154;
+  jac(6, 7) = cse423;
+  jac(6, 10) = cse424;
+  jac(6, 11) = cse352;
+  jac(6, 15) = cse352;
+  jac(6, 16) = cse425;
+  jac(6, 17) = cse404;
+  jac(7, 1) = cse353;
+  jac(7, 2) = cse353;
+  jac(7, 3) = -cse359;
+  jac(7, 4) = -cse422;
+  jac(7, 5) = -cse378;
+  jac(7, 6) = cse154;
+  jac(7, 7) = -cse423;
+  jac(7, 10) = -cse424;
+  jac(7, 11) = cse353;
+  jac(7, 15) = cse353;
+  jac(7, 16) = -cse425;
+  jac(7, 17) = -cse404;
+  jac(8, 1) = cse355 + cse94;
+  jac(8, 2) = cse355;
+  jac(8, 3) = cse360;
+  jac(8, 4) = cse200 + cse370;
+  jac(8, 5) = cse370;
+  jac(8, 8) = -cse148 - cse25 - cse386;
+  jac(8, 9) = cse199*nden(3) + cse388;
+  jac(8, 10) = cse426;
+  jac(8, 11) = cse355;
+  jac(8, 15) = cse355 + cse427;
+  jac(8, 16) = -cse325 + cse355;
+  jac(8, 17) = cse397 - cse398;
+  jac(9, 1) = cse356;
+  jac(9, 2) = cse356;
+  jac(9, 3) = -cse360;
+  jac(9, 4) = -cse371;
+  jac(9, 5) = -cse370;
+  jac(9, 7) = cse194;
+  jac(9, 8) = cse386;
+  jac(9, 9) = -cse389 - cse428;
+  jac(9, 10) = cse424;
+  jac(9, 11) = cse356;
+  jac(9, 15) = cse356;
+  jac(9, 16) = -cse355 - cse429;
+  jac(9, 17) = -cse397;
+  jac(10, 3) = cse109;
+  jac(10, 7) = -cse194;
+  jac(10, 8) = cse25;
+  jac(10, 10) = -cse187 - cse202 - cse210 - cse424;
+  jac(10, 11) = cse316;
+  jac(10, 12) = cse82;
+  jac(10, 15) = cse320;
+  jac(10, 16) = cse325;
+  jac(10, 17) = -cse420;
+  jac(11, 3) = -cse109;
+  jac(11, 9) = cse428;
+  jac(11, 10) = cse100 + cse187;
+  jac(11, 11) = -cse316;
+  jac(11, 16) = cse429;
+  jac(11, 17) = cse420;
+  jac(12, 1) = cse57;
+  jac(12, 2) = -cse73;
+  jac(12, 3) = cse273 + cse430;
+  jac(12, 4) = cse12 - cse292 - cse374;
+  jac(12, 7) = cse194;
+  jac(12, 10) = cse424 + cse426;
+  jac(12, 12) = -cse319 - cse431;
+  jac(12, 15) = -cse320;
+  jac(12, 16) = cse326;
+  jac(12, 17) = -cse400;
+  jac(12, 18) = cse341 + cse342;
+  jac(13, 1) = cse349;
+  jac(13, 2) = cse349;
+  jac(13, 3) = cse361;
+  jac(13, 4) = cse380;
+  jac(13, 5) = cse380;
+  jac(13, 11) = cse349;
+  jac(13, 13) = -cse393;
+  jac(13, 14) = cse394;
+  jac(13, 15) = cse349;
+  jac(13, 16) = cse349;
+  jac(13, 17) = cse403;
+  jac(14, 1) = cse350;
+  jac(14, 2) = cse350;
+  jac(14, 3) = -cse361;
+  jac(14, 4) = cse432;
+  jac(14, 5) = cse432;
+  jac(14, 11) = cse350;
+  jac(14, 13) = cse393;
+  jac(14, 14) = cse395;
+  jac(14, 15) = cse350;
+  jac(14, 16) = cse350;
+  jac(14, 17) = -cse403;
+  jac(15, 1) = cse408;
+  jac(15, 4) = cse433*nden(8);
+  jac(15, 8) = cse148;
+  jac(15, 9) = cse433*nden(3);
+  jac(15, 12) = -cse82;
+  jac(15, 15) = -cse320 - cse427;
+  jac(15, 17) = cse398;
+  jac(16, 3) = -cse414 - cse430;
+  jac(16, 4) = cse375;
+  jac(16, 7) = -cse87;
+  jac(16, 8) = -cse25;
+  jac(16, 9) = -cse428;
+  jac(16, 12) = cse431;
+  jac(16, 16) = -cse327 - cse429;
+  jac(16, 17) = cse400;
+  jac(16, 18) = cse343;
+  jac(17, 3) = -cse366;
+  jac(17, 4) = cse417;
+  jac(17, 5) = cse311;
+  jac(17, 8) = cse385;
+  jac(17, 10) = -cse187;
+  jac(17, 12) = cse392;
+  jac(17, 17) = -cse399 - cse421;
+  jac(18, 1) = -cse57;
+  jac(18, 2) = cse73;
+  jac(18, 3) = -cse362;
+  jac(18, 4) = -cse418;
+  jac(18, 7) = cse87;
+  jac(18, 12) = cse318;
+  jac(18, 16) = cse324;
+  jac(18, 18) = -cse341 - cse405;
 
-    // Edot
-
-    Real edot = rhs_eint(state, X, crate, av, d2g, chi);
-
-    // Append the energy equation (this is erg/g/s)
-
-    ydot(net_ienuc) = edot;
-
+  // PREPROCESS_END
 }
 
+template <class MatrixType>
+AMREX_GPU_HOST_DEVICE AMREX_INLINE void actual_jac(const burn_t &state,
+                                                   MatrixType &jac) {
 
-template<class MatrixType>
-AMREX_GPU_HOST_DEVICE AMREX_INLINE
-void jac_nuc(const burn_t& state,
-             MatrixType& jac,
-             const Array1D<Real, 0, NumSpec-1>& X,
-             Real const crate, Real const av,
-             Real const d2g, Real const chi,
-             Real const Tdust) {
-             
-    // PREPROCESS_TEMP_VARS
+  amrex::Array1D<amrex::Real, 0, NumSpec - 1> nden;
+  for (int i = 0; i < NumSpec; ++i) {
+    nden(i) = state.xn[i];
+  }
 
-    
-    Real T = state.T;
+  jac.zero();
+  // Species Jacobian elements with respect to other species
 
-    // PREPROCESS_END
-
-    // PREPROCESS_JACOBIAN
-
-    Real x0 = 6.3999999999999996e-10*X(4);
-    Real x3 = std::sqrt(T);
-    Real x4 = 1.0/X(2);
-    Real x5 = x3*x4;
-    Real x6 = x5*X(3);
-    Real x7 = 0.00011320754716981131*x6;
-    Real x8 = std::min(10000000000.0, x7);
-    Real x9 = x8 + 1;
-    Real x10 = 1.0/x9;
-    Real x11 = 1.6000000000000001e-9*x10;
-    Real x12 = x11*X(17);
-    Real x15 = x10*X(16);
-    Real x16 = 1.99e-9*std::pow(T, -0.19);
-    Real x17 = x15*x16;
-    Real x19 = 3.5000000000000002e-11*X(15);
-    Real x21 = 3.7999999999999998e-10*std::exp(-2.6600000000000001*av);
-    Real x23 = std::max(10.0, std::min(500.0, T));
-    Real x24 = 7.9968521560975323e-10*std::pow(x23, -0.34000000000000002)*std::exp(0.11/x23);
-    Real x25 = x24*X(15);
-    Real x27 = std::pow(X(3), 2);
-    Real x28 = 1.0/T;
-    Real x29 = std::log(5.9959999999999997e-30*std::pow(T, 4.1881000000000004)*std::pow(6.7610000000000002e-6*T + 1, -5.6881000000000004)*std::exp(-54657.400000000001*x28));
-    Real x30 = M_LN10;
-    Real x31 = 1.0/x30;
-    Real x32 = 2*X(3);
-    Real x33 = x32 + X(0) + X(1) + X(10) + X(14) + X(15) + 3*X(16) + 2*X(4);
-    Real x34 = 1.0/x33;
-    Real x35 = std::log((1.0/10000.0)*T);
-    Real x36 = std::pow(x35, 2)/std::pow(x30, 2);
-    Real x37 = std::pow(10, 1.3*x31*x35 - 1.6200000000000001*x36 - 4.8449999999999998);
-    Real x38 = x34*x37;
-    Real x39 = std::pow(10, 0.41599999999999998*x31*x35 + 0.32700000000000001*x36 - 3);
-    Real x40 = x34*x39;
-    Real x41 = x38*X(3) + x40*X(0);
-    Real x42 = 1.0/x41;
-    Real x43 = std::min(1.0e+100, x42);
-    Real x44 = 1.0/x43;
-    Real x45 = x33*x44;
-    Real x46 = x45 + 1;
-    Real x47 = x31/x46;
-    Real x48 = std::log(1.3000000000000001e-9*std::exp(-53300*x28));
-    Real x49 = x45*x47;
-    Real x50 = std::pow(10, x29*x47 + x48*x49);
-    Real x51 = T > 700.0;
-    Real x52 = ((x51) ? (
-       x50
-    )
-    : (
-       0
-    ));
-    Real x54 = std::exp(-4.1799999999999997*av);
-    Real x55 = 1.1399999999999999e-10*x54;
-    Real x56 = 7.5e-10*std::pow(T, -0.45800000000000002) + 4.9899999999999997e-11*std::pow(T, 0.40500000000000003);
-    Real x57 = x56*X(17);
-    Real x59 = std::log(6.6699999999999996e-12*x3*std::exp(-63590*x28 - 1));
-    Real x60 = std::log(3.5199999999999998e-9*std::exp(-43900*x28));
-    Real x61 = std::pow(10, x47*x59 + x49*x60);
-    Real x62 = ((x51) ? (
-       x61
-    )
-    : (
-       0
-    ));
-    Real x63 = x62*X(0);
-    Real x64 = std::max(10.0, std::min(300.0, T));
-    Real x65 = std::pow(x64, -0.52000000000000002);
-    Real x66 = 2.9935562710997168e-6*x65;
-    Real x67 = x66*X(16);
-    Real x68 = 3.2000000000000001e-9*x10;
-    Real x69 = x68*X(17);
-    Real x70 = 6.0000000000000005e-15*d2g;
-    Real x71 = x70*X(0);
-    Real x72 = (4.0000000000000001e-10*std::pow(T, 0.0066899999999999998) + 9.9999999999999994e-12*std::pow(T, 0.51700000000000002))*std::exp(-227*x28);
-    Real x73 = x72*X(11);
-    Real x75 = std::pow(T, -1.3);
-    Real x76 = std::exp(-23*x28);
-    Real x77 = x75*x76;
-    Real x78 = 4.2899999999999994e-13*x77;
-    Real x79 = x78*X(8);
-    Real x80 = 9.0999999999999996e-10*std::exp(-2.1200000000000001*av);
-    Real x82 = 7.0000000000000004e-11*X(14);
-    Real x85 = std::min(800.0, T);
-    Real x86 = 8.37e-10 + 6.1305895032630246e-8/std::sqrt(std::max(10.0, x85));
-    Real x87 = x86*X(15);
-    Real x89 = 1.2599999999999999e-13*std::exp(-22.5*x28);
-    Real x90 = x89*X(6);
-    Real x93 = 2.8142984982406731e-11*std::pow(x23, 0.26000000000000001);
-    Real x94 = x93*X(14);
-    Real x96 = 1.7599999999999999e-9*std::pow(T, 0.042000000000000003)*std::exp(-2.145922746781116e-5*T);
-    Real x97 = x96*X(4);
-    Real x100 = 6.5199999999999996*crate;
-    Real x102 = crate*(1.5*x34*X(0) + 2.2999999999999998*x34*X(3));
-    Real x104 = std::log(8.6173000000000003e-5*T);
-    Real x105 = ((x51) ? (
-       5.9078447946382801e-70*std::pow(T, 13.536555999999999)*std::exp(-2.0391498499999999e-6*std::pow(x104, 8) + 0.000111954395*std::pow(x104, 7) - 0.00263197617*std::pow(x104, 6) + 0.034825597700000002*std::pow(x104, 5) - 0.28770560000000001*std::pow(x104, 4) + 1.56315498*std::pow(x104, 3) - 5.7393287500000003*std::pow(x104, 2))
-    )
-    : (
-       0
-    ));
-    Real x106 = x105*X(2);
-    Real x108 = 1.05849862170431e-5*std::pow(x64, -0.64000000000000001);
-    Real x109 = x108*X(10);
-    Real x111 = 4.8813573300130879e-6*std::pow(x28, 1.5)*std::pow(114.81344434488582*std::pow(x28, 0.40699999999999997) + 1, -2.242);
-    Real x112 = x111*X(2);
-    Real x114 = x33*d2g;
-    Real x115 = chi*x5*std::exp(-1.8700000000000001*av);
-    Real x116 = std::pow(x115, 1.3779999999999999);
-    Real x117 = 1.7*x115;
-    Real x118 = x31*std::log(T);
-    Real x119 = 1.102e-5*x118 + 0.4723;
-    Real x120 = std::pow(x117, -x119)*std::pow(T, 0.015859999999999999);
-    Real x121 = x116*(508.69999999999999*x120 + 1);
-    Real x122 = 1.6774414051711492e-5*x121 + 1;
-    Real x123 = 1.0/x122;
-    Real x124 = 1.2250000000000001e-11*x123;
-    Real x125 = x114*x124;
-    Real x129 = 8400.0*crate;
-    Real x131 = 4.4999999999999998e-9*std::exp(-2.6099999999999999*av);
-    Real x134 = 1.4595000290776864e-10*std::pow(x64, -0.62);
-    Real x135 = x134*X(13);
-    Real x137 = std::pow(x115, 1.8740000000000001);
-    Real x138 = 7.538e-5*x118 + 0.89639999999999997;
-    Real x139 = std::pow(x117, -x138)*std::pow(T, 1.635e-6);
-    Real x140 = x137*(43750.0*x139 + 1);
-    Real x141 = 1.534817233071468e-7*x140 + 1;
-    Real x142 = 1.0/x141;
-    Real x143 = 2.1659999999999999e-12*x142;
-    Real x144 = x114*x143;
-    Real x147 = 1.0537934368240927e-9*std::pow(x28, 0.00231) + std::pow(T, -1.5)*(0.00015100000000000001*std::exp(-8110.0*x28) + 2.007e-8*std::exp(-26.600000000000001*x28) + 3.4e-8*std::exp(-1.3799999999999999*x28));
-    Real x148 = x147*X(16);
-    Real x150 = 1.3007021411393064e-6*x65;
-    Real x151 = x150*X(16);
-    Real x154 = 1.1000000000000001*crate;
-    Real x155 = 9.9999999999999994e-12*std::pow(T, -0.5)*(x118*(x118*(0.044330000000000001*x118 - 0.28520000000000001) - 1.6759999999999999) + 11.19);
-    Real x156 = x155*X(6);
-    Real x157 = std::pow(x115, 1.512);
-    Real x158 = 5.4939999999999998e-7*x118 + 0.49559999999999998;
-    Real x159 = std::pow(x117, -x158)*std::pow(T, 3.9029999999999999e-7);
-    Real x160 = x157*(5115.0*x159 + 1);
-    Real x161 = 7.104740267838494e-7*x160 + 1;
-    Real x162 = 1.0/x161;
-    Real x163 = 5.5720000000000001e-12*x162;
-    Real x164 = x114*x163;
-    Real x166 = 3.2999999999999996e-13*x77;
-    Real x167 = x166*X(8);
-    Real x169 = 523.85000000000002*crate;
-    Real x170 = 3.4999999999999998e-10*std::exp(-3.7599999999999998*av);
-    Real x171 = 0.15970000000000001*std::exp(-49550.0*x28);
-    Real x172 = (1.6339999999999999e-6*std::exp(-15230.0*x28) + 9.7930000000000004e-9*std::exp(-73.799999999999997*x28) + 6.3460000000000002e-9*std::exp(-12.17*x28))/std::pow(T, 3.0/2.0) + 2.4460185352936309e-10*std::pow(0.00071740367932898903*x3 + 1, -x171 - 1.7848999999999999)*std::pow(12.244387999457523*x3 + 1, x171 - 0.21509999999999996)/x3;
-    Real x173 = x172*X(8);
-    Real x174 = std::pow(x115, 1.1279999999999999);
-    Real x175 = 0.00013329999999999999*x118 + 0.81200000000000006;
-    Real x176 = std::pow(x117, -x175)*std::pow(T, 0.04845);
-    Real x177 = x174*(433.10000000000002*x176 + 1);
-    Real x178 = 0.011078790689599145*x177 + 1;
-    Real x179 = 1.0/x178;
-    Real x180 = 4.5579999999999993e-11*x179;
-    Real x181 = x114*x180;
-    Real x186 = 5.6999999999999997e-11*x54;
-    Real x187 = 1.6999999999999999e-9*X(16);
-    Real x189 = x62*X(3);
-    Real x190 = 7.2000000000000002e-15*X(6);
-    Real x194 = 1.6000000000000001e-9*X(9);
-    Real x197 = 92.0*crate;
-    Real x199 = 9.8999999999999995e-14*x77;
-    Real x200 = x199*X(8);
-    Real x202 = 2.4e-10*std::exp(-3.8799999999999999*av);
-    Real x205 = 5.673e-10 + 4.1551773299893832e-8/std::sqrt(std::max(10.0, std::min(20.0, T)));
-    Real x206 = x205*X(15);
-    Real x207 = 5.673e-10 + 4.1551773299893832e-8/std::sqrt(std::max(30.0, x85));
-    Real x208 = x207*X(15);
-    Real x210 = 98.519999999999996*crate;
-    Real x215 = x44*x47;
-    Real x216 = x215*x48;
-    Real x217 = std::pow(x33, -2);
-    Real x218 = x217*X(3);
-    Real x219 = x218*x37;
-    Real x220 = x217*X(0);
-    Real x221 = x220*x39;
-    Real x222 = x219 + x221;
-    Real x223 = x222 - x40;
-    Real x224 = std::pow(x41, -2);
-    Real x225 = std::pow(x43, -2);
-    Real x226 = (((x42 - 1.0e+100 > 0) ? (
-       0
-    )
-    : ((x42 - 1.0e+100 == 0) ? (
-       1.0/2.0
-    )
-    : (
-       1
-    ))));
-    Real x227 = x224*x225*x226*x33;
-    Real x228 = x223*x227*x47;
-    Real x229 = x31/std::pow(x46, 2);
-    Real x230 = x229*(x223*x224*x225*x226*x33 - x44);
-    Real x231 = x230*x45;
-    Real x232 = x30*x50;
-    Real x233 = ((x51) ? (
-       x232*(x216 - x228*x48 + x230*x29 + x231*x48)
-    )
-    : (
-       0
-    ));
-    Real x234 = x215*x60;
-    Real x235 = x30*x61;
-    Real x236 = ((x51) ? (
-       x235*(-x228*x60 + x230*x59 + x231*x60 + x234)
-    )
-    : (
-       0
-    ));
-    Real x237 = d2g*X(1);
-    Real x238 = x124*x237;
-    Real x239 = -x238;
-    Real x240 = 2.2999999999999998*x218 + 1.5*x220;
-    Real x241 = -x240 + 1.5*x34;
-    Real x242 = crate*X(0);
-    Real x243 = x102 + x106 + x239 + x241*x242;
-    Real x244 = x0 + x243 + x57;
-    Real x245 = -x240;
-    Real x246 = x242*x245;
-    Real x247 = x238 - x246;
-    Real x248 = x112 + x125 + x247;
-    Real x249 = x248 + x73;
-    Real x250 = x222*x227;
-    Real x251 = x250*x47;
-    Real x252 = x229*(x250 - x44);
-    Real x253 = x252*x45;
-    Real x254 = x27*((x51) ? (
-       x232*(x216 - x251*x48 + x252*x29 + x253*x48)
-    )
-    : (
-       0
-    ));
-    Real x255 = -x71;
-    Real x256 = ((x51) ? (
-       x235*(x234 - x251*x60 + x252*x59 + x253*x60)
-    )
-    : (
-       0
-    ));
-    Real x257 = x32*X(0);
-    Real x258 = 2*x254 + x255 + x256*x257;
-    Real x259 = std::pow(x9, -2);
-    Real x260 = x259*X(16);
-    Real x261 = std::pow(X(2), -2);
-    Real x262 = (((x7 - 10000000000.0 > 0) ? (
-       0
-    )
-    : ((x7 - 10000000000.0 == 0) ? (
-       1.0/2.0
-    )
-    : (
-       1
-    ))));
-    Real x263 = 2.2528301886792451e-13*x262*std::pow(T, 0.31)*X(11);
-    Real x264 = x261*x263*X(3);
-    Real x265 = x260*x264;
-    Real x266 = x262*X(17);
-    Real x267 = x259*x266;
-    Real x268 = 3.6226415094339619e-13*x267;
-    Real x269 = x261*x27*x3;
-    Real x270 = 1.811320754716981e-13*x269;
-    Real x271 = x10*x266;
-    Real x272 = x270*x271;
-    Real x273 = x267*x270;
-    Real x274 = x273*x8;
-    Real x275 = -x272 + x274;
-    Real x276 = -x105*X(0) + x111*X(1) + 1.2250000000000001e-11*x114*X(1)*(-0.0085331444281056355*x116*x119*x120*x4 + 2.3115142563258434e-5*x121*x4)/std::pow(x122, 2);
-    Real x277 = x109 + x276;
-    Real x278 = d2g*X(0);
-    Real x279 = -1.2000000000000001e-14*x278;
-    Real x280 = 2*x44;
-    Real x281 = x280*x47;
-    Real x282 = x281*x48;
-    Real x283 = x217*x32*x37 + 2*x221;
-    Real x284 = x283 - x38;
-    Real x285 = x227*x284*x47;
-    Real x286 = x229*(x224*x225*x226*x284*x33 - x280);
-    Real x287 = x286*x45;
-    Real x288 = x27*((x51) ? (
-       x232*(x282 - x285*x48 + x286*x29 + x287*x48)
-    )
-    : (
-       0
-    ));
-    Real x289 = x281*x60;
-    Real x290 = ((x51) ? (
-       x235*(-x285*x60 + x286*x59 + x287*x60 + x289)
-    )
-    : (
-       0
-    ));
-    Real x291 = 1.811320754716981e-13*x6;
-    Real x292 = x267*x291;
-    Real x293 = x12*x8 + x271*x291 - x292*x8;
-    Real x294 = x123*x237;
-    Real x295 = 2.4500000000000003e-11*x294;
-    Real x296 = 4.5999999999999996*x218 + 3.0*x220;
-    Real x297 = -x296 + 2.2999999999999998*x34;
-    Real x298 = x242*x297;
-    Real x299 = x263*x4;
-    Real x300 = x260*x299;
-    Real x301 = x295 - x298 - x300;
-    Real x302 = x227*x283;
-    Real x303 = x302*x47;
-    Real x304 = x229*(-x280 + x302);
-    Real x305 = x304*x45;
-    Real x306 = x27*((x51) ? (
-       x232*(x282 + x29*x304 - x303*x48 + x305*x48)
-    )
-    : (
-       0
-    ));
-    Real x307 = ((x51) ? (
-       x235*(x289 - x303*x60 + x304*x59 + x305*x60)
-    )
-    : (
-       0
-    ));
-    Real x308 = -x296;
-    Real x309 = x242*x308;
-    Real x310 = x295 - x309;
-    Real x311 = x96*X(3);
-    Real x312 = 6.3999999999999996e-10*X(0);
-    Real x313 = x311 - x312;
-    Real x314 = x89*X(3);
-    Real x315 = x314 + x87;
-    Real x316 = x108*X(2);
-    Real x317 = x247 + x316;
-    Real x318 = x72*X(1);
-    Real x319 = x318 + x82;
-    Real x320 = 7.0000000000000004e-11*X(11);
-    Real x321 = x93*X(0);
-    Real x322 = -x321;
-    Real x323 = x247 + x258;
-    Real x324 = x86*X(6);
-    Real x325 = x24*X(7);
-    Real x326 = x21 + 3.5000000000000002e-11*X(11);
-    Real x327 = x324 + x325 + x326;
-    Real x328 = 3*x44;
-    Real x329 = x328*x47;
-    Real x330 = x227*(3*x219 + 3*x221);
-    Real x331 = x330*x47;
-    Real x332 = x229*(-x328 + x330);
-    Real x333 = x332*x45;
-    Real x334 = x27*((x51) ? (
-       x232*(x29*x332 + x329*x48 - x331*x48 + x333*x48)
-    )
-    : (
-       0
-    ));
-    Real x335 = ((x51) ? (
-       x235*(x329*x60 - x331*x60 + x332*x59 + x333*x60)
-    )
-    : (
-       0
-    ));
-    Real x336 = x10*x16*X(11);
-    Real x337 = -6.8999999999999995*x218 - 4.5*x220;
-    Real x338 = x242*x337;
-    Real x339 = 3.6750000000000002e-11*x294;
-    Real x340 = x336 - x338 + x339;
-    Real x341 = x56*X(0);
-    Real x342 = x11*X(3);
-    Real x343 = x342*x8;
-    Real x344 = -x295;
-    Real x345 = x239 + x246;
-    Real x346 = crate*x32;
-    Real x347 = x241*x346;
-    Real x348 = d2g*X(13);
-    Real x349 = x143*x348;
-    Real x350 = -x349;
-    Real x351 = d2g*X(6);
-    Real x352 = x163*x351;
-    Real x353 = -x352;
-    Real x354 = d2g*X(8);
-    Real x355 = x180*x354;
-    Real x356 = -x355;
-    Real x357 = x245*x346;
-    Real x358 = x349 + x352 + x355 - x357;
-    Real x359 = 5.5720000000000001e-12*x114*X(6)*(-0.0036340746469993896*x157*x158*x159*x4 + 1.0742367284971802e-6*x160*x4)/std::pow(x161, 2) + x156;
-    Real x360 = 4.5579999999999993e-11*x114*X(8)*(-4.7982242476653898*x174*x175*x176*x4 + 0.012496875897867835*x177*x4)/std::pow(x178, 2) + x173;
-    Real x361 = 2.1659999999999999e-12*x114*X(13)*(-0.0067148253946876721*x137*x138*x139*x4 + 2.8762474947759312e-7*x140*x4)/std::pow(x141, 2) + x135;
-    Real x362 = x273 + x275;
-    Real x363 = x15*x264;
-    Real x364 = x265*x8;
-    Real x365 = x265 - x363 + x364;
-    Real x366 = x151 + x365;
-    Real x367 = 2*x102;
-    Real x368 = x297*x346;
-    Real x369 = x179*x354;
-    Real x370 = 9.1159999999999986e-11*x369;
-    Real x371 = x167 + x370;
-    Real x372 = x15*x299;
-    Real x373 = x300*x8;
-    Real x374 = x372 - x373;
-    Real x375 = x293 + x374;
-    Real x376 = x12 - x292;
-    Real x377 = x162*x351;
-    Real x378 = 1.1144e-11*x377;
-    Real x379 = x142*x348;
-    Real x380 = 4.3319999999999997e-12*x379;
-    Real x381 = x378 + x380;
-    Real x382 = x308*x346;
-    Real x383 = -x382;
-    Real x384 = x155*X(2) + x164;
-    Real x385 = -x148;
-    Real x386 = x169 + x170;
-    Real x387 = x166*X(3);
-    Real x388 = x172*X(2) + x181;
-    Real x389 = x387 + x388;
-    Real x390 = x17*x8;
-    Real x391 = x17 + x390;
-    Real x392 = -x391;
-    Real x393 = x129 + x131;
-    Real x394 = x134*X(2) + x144;
-    Real x395 = -x394;
-    Real x396 = -x247 - x358;
-    Real x397 = 1.3673999999999998e-10*x369;
-    Real x398 = x147*X(7);
-    Real x399 = x150*X(2);
-    Real x400 = x336*x8;
-    Real x401 = x337*x346;
-    Real x402 = -x401;
-    Real x403 = 6.4979999999999992e-12*x379;
-    Real x404 = 1.6715999999999999e-11*x377;
-    Real x405 = x342 + x343;
-    Real x406 = -x405;
-    Real x407 = -3.0000000000000002e-15*d2g*X(0);
-    Real x408 = -x94;
-    Real x409 = X(0)*X(3);
-    Real x410 = -x0 + x347;
-    Real x411 = x254 + x256*x409 + x357 + x407;
-    Real x412 = -x411;
-    Real x413 = 4.5427507615910105e-7*x65;
-    Real x414 = x272 - x274;
-    Real x415 = x190 + x90;
-    Real x416 = x367 + x368;
-    Real x417 = x300 - x372 + x373 + x97;
-    Real x418 = x293 + x376;
-    Real x419 = 7.2000000000000002e-15*X(3);
-    Real x420 = 1.6999999999999999e-9*X(9);
-    Real x421 = x336 + x398 + x400 + x420;
-    Real x422 = x378 + x415;
-    Real x423 = x194 + x315 + x384 + x419;
-    Real x424 = 1.6000000000000001e-9*X(6);
-    Real x425 = x324 + x352;
-    Real x426 = x197 + x202;
-    Real x427 = x321 + x80;
-    Real x428 = x206 + x208;
-    Real x429 = x205*X(8) + x207*X(8);
-    Real x430 = x363 - x364;
-    Real x431 = -x19 + x390;
-    Real x432 = -x380;
-    Real x433 = 2.3099999999999997e-13*x77;
-    jac(1,1) = 2*x233*x27 + 2*x236*X(0)*X(3) - x244 - x33*x70 + 2*x62*X(3) - x71 - x94;
-    jac(1,2) = x249 + x258;
-    jac(1,3) = x265 + x268*x269 + x275 + x277 + x67;
-    jac(1,4) = x257*x290 - x268*x6 + x279 + 2*x288 + x293 + x301 + 4*x52*X(3) + x55 + 2*x63 + x69 + x79 + x90 + x97;
-    jac(1,5) = x257*x307 + x279 + 2*x306 + x310 + x313;
-    jac(1,7) = x315;
-    jac(1,8) = x25;
-    jac(1,9) = x78*X(3);
-    jac(1,10) = -x100;
-    jac(1,11) = x258 + x317;
-    jac(1,12) = x17 + x19 + x319;
-    jac(1,15) = x320 + x322 + x323 + x80;
-    jac(1,16) = x323 + x327;
-    jac(1,17) = x257*x335 - 1.8000000000000002e-14*x278 + 2*x334 + x340 + x66*X(2);
-    jac(1,18) = -x341 + x343 + x68*X(3);
-    jac(2,1) = x244;
-    jac(2,2) = -x249;
-    jac(2,3) = -x276;
-    jac(2,4) = x298 + x344 + x90;
-    jac(2,5) = x309 + x312 + x344;
-    jac(2,7) = x314;
-    jac(2,11) = x345;
-    jac(2,12) = -x318;
-    jac(2,15) = x345;
-    jac(2,16) = x345;
-    jac(2,17) = x338 - x339;
-    jac(2,18) = x341;
-    jac(3,1) = x243 + x347 + x350 + x353 + x356;
-    jac(3,2) = -x248 - x358;
-    jac(3,3) = -x277 - x359 - x360 - x361 - x362 - x366;
-    jac(3,4) = -x301 + x367 + x368 - x371 - x375 - x376 - x381;
-    jac(3,5) = -x310 - x370 - x381 - x383;
-    jac(3,6) = x154;
-    jac(3,7) = -x384;
-    jac(3,8) = x385 + x386;
-    jac(3,9) = -x389;
-    jac(3,10) = x100;
-    jac(3,11) = -x317 - x358;
-    jac(3,12) = x392;
-    jac(3,13) = x393;
-    jac(3,14) = x395;
-    jac(3,15) = x396;
-    jac(3,16) = x396;
-    jac(3,17) = -x340 - x397 - x398 - x399 - x400 - x402 - x403 - x404;
-    jac(3,18) = x406;
-    jac(4,1) = -x189 - x233*x27 - x236*x409 + 3.0000000000000002e-15*x33*d2g - x407 - x408 - x410;
-    jac(4,2) = x412;
-    jac(4,3) = -x273 + x365 + x413*X(16) + x414;
-    jac(4,4) = -x167 - x186 - x255 - x288 - x290*x409 - x32*x52 - x415 - x416 - x417 - x418 - x63;
-    jac(4,5) = -x255 - x306 - x307*x409 - x313 - x382;
-    jac(4,7) = -x314 - x419;
-    jac(4,8) = x148;
-    jac(4,9) = -x387;
-    jac(4,10) = x187;
-    jac(4,11) = x412;
-    jac(4,12) = x391;
-    jac(4,15) = -x322 - x411;
-    jac(4,16) = x412;
-    jac(4,17) = 9.0000000000000011e-15*x278 - x334 - x335*x409 + x402 + x413*X(2) + x421;
-    jac(4,18) = x406;
-    jac(5,1) = x410;
-    jac(5,2) = x357;
-    jac(5,4) = x190 + x416 - x97;
-    jac(5,5) = -x311 - x312 - x383;
-    jac(5,7) = x419;
-    jac(5,11) = x357;
-    jac(5,15) = x357;
-    jac(5,16) = x357;
-    jac(5,17) = x401;
-    jac(6,1) = x352;
-    jac(6,2) = x352;
-    jac(6,3) = x359;
-    jac(6,4) = x422;
-    jac(6,5) = x378;
-    jac(6,6) = -x154;
-    jac(6,7) = x423;
-    jac(6,10) = x424;
-    jac(6,11) = x352;
-    jac(6,15) = x352;
-    jac(6,16) = x425;
-    jac(6,17) = x404;
-    jac(7,1) = x353;
-    jac(7,2) = x353;
-    jac(7,3) = -x359;
-    jac(7,4) = -x422;
-    jac(7,5) = -x378;
-    jac(7,6) = x154;
-    jac(7,7) = -x423;
-    jac(7,10) = -x424;
-    jac(7,11) = x353;
-    jac(7,15) = x353;
-    jac(7,16) = -x425;
-    jac(7,17) = -x404;
-    jac(8,1) = x355 + x94;
-    jac(8,2) = x355;
-    jac(8,3) = x360;
-    jac(8,4) = x200 + x370;
-    jac(8,5) = x370;
-    jac(8,8) = -x148 - x25 - x386;
-    jac(8,9) = x199*X(3) + x388;
-    jac(8,10) = x426;
-    jac(8,11) = x355;
-    jac(8,15) = x355 + x427;
-    jac(8,16) = -x325 + x355;
-    jac(8,17) = x397 - x398;
-    jac(9,1) = x356;
-    jac(9,2) = x356;
-    jac(9,3) = -x360;
-    jac(9,4) = -x371;
-    jac(9,5) = -x370;
-    jac(9,7) = x194;
-    jac(9,8) = x386;
-    jac(9,9) = -x389 - x428;
-    jac(9,10) = x424;
-    jac(9,11) = x356;
-    jac(9,15) = x356;
-    jac(9,16) = -x355 - x429;
-    jac(9,17) = -x397;
-    jac(10,3) = x109;
-    jac(10,7) = -x194;
-    jac(10,8) = x25;
-    jac(10,10) = -x187 - x202 - x210 - x424;
-    jac(10,11) = x316;
-    jac(10,12) = x82;
-    jac(10,15) = x320;
-    jac(10,16) = x325;
-    jac(10,17) = -x420;
-    jac(11,3) = -x109;
-    jac(11,9) = x428;
-    jac(11,10) = x100 + x187;
-    jac(11,11) = -x316;
-    jac(11,16) = x429;
-    jac(11,17) = x420;
-    jac(12,1) = x57;
-    jac(12,2) = -x73;
-    jac(12,3) = x273 + x430;
-    jac(12,4) = x12 - x292 - x374;
-    jac(12,7) = x194;
-    jac(12,10) = x424 + x426;
-    jac(12,12) = -x319 - x431;
-    jac(12,15) = -x320;
-    jac(12,16) = x326;
-    jac(12,17) = -x400;
-    jac(12,18) = x341 + x342;
-    jac(13,1) = x349;
-    jac(13,2) = x349;
-    jac(13,3) = x361;
-    jac(13,4) = x380;
-    jac(13,5) = x380;
-    jac(13,11) = x349;
-    jac(13,13) = -x393;
-    jac(13,14) = x394;
-    jac(13,15) = x349;
-    jac(13,16) = x349;
-    jac(13,17) = x403;
-    jac(14,1) = x350;
-    jac(14,2) = x350;
-    jac(14,3) = -x361;
-    jac(14,4) = x432;
-    jac(14,5) = x432;
-    jac(14,11) = x350;
-    jac(14,13) = x393;
-    jac(14,14) = x395;
-    jac(14,15) = x350;
-    jac(14,16) = x350;
-    jac(14,17) = -x403;
-    jac(15,1) = x408;
-    jac(15,4) = x433*X(8);
-    jac(15,8) = x148;
-    jac(15,9) = x433*X(3);
-    jac(15,12) = -x82;
-    jac(15,15) = -x320 - x427;
-    jac(15,17) = x398;
-    jac(16,3) = -x414 - x430;
-    jac(16,4) = x375;
-    jac(16,7) = -x87;
-    jac(16,8) = -x25;
-    jac(16,9) = -x428;
-    jac(16,12) = x431;
-    jac(16,16) = -x327 - x429;
-    jac(16,17) = x400;
-    jac(16,18) = x343;
-    jac(17,3) = -x366;
-    jac(17,4) = x417;
-    jac(17,5) = x311;
-    jac(17,8) = x385;
-    jac(17,10) = -x187;
-    jac(17,12) = x392;
-    jac(17,17) = -x399 - x421;
-    jac(18,1) = -x57;
-    jac(18,2) = x73;
-    jac(18,3) = -x362;
-    jac(18,4) = -x418;
-    jac(18,7) = x87;
-    jac(18,12) = x318;
-    jac(18,16) = x324;
-    jac(18,18) = -x341 - x405;
-
-    // PREPROCESS_END
-
+  jac_chem(state, jac, nden);
 }
-
-template<class MatrixType>
-AMREX_GPU_HOST_DEVICE AMREX_INLINE
-void actual_jac(const burn_t& state, MatrixType& jac)
-{
-    Real crate = network_rp::crate;
-    Real av = network_rp::Av;
-    Real d2g = network_rp::dust2gas_ratio;
-    Real chi = network_rp::chi;
-    
-    Real Tdust = 10;  //10 Kelvin
-
-    Array1D<Real, 0, NumSpec-1> X;
-    for (int i = 0; i < NumSpec; ++i) {
-        X(i) = state.xn[i];
-    }
-    // Species Jacobian elements with respect to other species
-
-    jac_nuc(state, jac, X, crate, av, d2g, chi, Tdust);
-
-}
-
 
 AMREX_INLINE
-void actual_rhs_init () {
-
-
-}
-
+void actual_rhs_init() {}
 
 #endif

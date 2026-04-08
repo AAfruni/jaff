@@ -10,7 +10,9 @@ class Builder:
         print("Building network with template:", template)
 
         # prepare the template path
-        path_template = os.path.join(os.path.dirname(__file__), "templates", template)
+        path_template = os.path.join(
+            os.path.dirname(__file__), "templates", "preprocessor", template
+        )
 
         # prepare the build path (use current working directory if not specified)
         if output_dir is None:
@@ -24,7 +26,7 @@ class Builder:
         except ImportError as e:
             print(f"Error: Template '{template}' not found. Available templates are:")
             for template in os.listdir(
-                os.path.join(os.path.dirname(__file__), "templates")
+                os.path.join(os.path.dirname(__file__), "templates", "preprocessor")
             ):
                 print(template)
             sys.exit(1)

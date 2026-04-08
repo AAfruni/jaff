@@ -1,24 +1,17 @@
-import os
+import re
+
+from jaff import Codegen, Network, Preprocessor
 
 
-def main(network, path_template, path_build=None):
-    from jaff.preprocessor import Preprocessor
-
+def main(network: Network, path_template, path_build=None):
     p = Preprocessor()
+    cg = Codegen(network=network, lang="cxx")
 
     ## Generate C++ code using header-only integrators (VODE)
 
     # Get species indices and counts with C++ formatting
-    scommons = network.get_commons(
+    scommons = cg.get_commons(
         idx_offset=0, idx_prefix="", definition_prefix="static constexpr int "
-    )
-
-    # Add semicolons for C++ syntax
-    scommons = "\n".join(
-        [
-            line + ";" if line.strip() and not line.strip().endswith(";") else line
-            for line in scommons.split("\n")
-        ]
     )
 
     # Add common chemistry variables that are used in rate expressions
@@ -34,21 +27,14 @@ static constexpr double DEFAULT_CRATE = 1.3e-17;      // Default cosmic ray ioni
     scommons = scommons + "\n" + chemistry_vars
 
     # Get reaction rates with C++ syntax and CSE optimization
-    rates = network.get_rates(
-        idx_offset=0, rate_variable="k", language="c++", use_cse=True
-    )
-    # Ensure we use standard <cmath> namespace, not Kokkos math wrappers
-    rates = rates.replace("Kokkos::", "std::")
+    rates = cg.get_rates_str(idx_offset=0, rate_variable="k", use_cse=True)
 
     # Generate symbolic ODE and analytical Jacobian
-    sode, jacobian = network.get_symbolic_ode_and_jacobian(
-        idx_offset=0, use_cse=True, language="c++"
+    sode = cg.get_ode_str(idx_offset=0, use_cse=True)
+    jacobian = cg.get_jacobian_str(
+        idx_offset=0,
+        use_cse=True,
     )
-    # Convert Jacobian indexing from J(i, j) (Kokkos view style) to J[i][j] (std::array style)
-    # This keeps the network generator stable while adapting to header-only integrators API
-    import re
-
-    jacobian = re.sub(r"J\((\d+)\s*,\s*(\d+)\)", r"J[\1][\2]", jacobian)
 
     # Generate temperature variable definitions for C++
     # These variables are commonly used in chemistry rate expressions
@@ -70,8 +56,6 @@ const double crate = DEFAULT_CRATE;  // Cosmic ray ionization rate
 
     # Build conservation metadata for C++ template injection
     # Elements present across species (exclude non-atomic tokens and electrons)
-    import re
-
     element_keys = []
     for sp in network.species:
         # sp.exploded contains atomic symbols and possible tokens; filter later
@@ -141,3 +125,8 @@ const double crate = DEFAULT_CRATE;  // Cosmic ray ionization rate
         comment="auto",
         path_build=path_build,
     )
+
+
+if __name__ == "__main__":
+    net = Network("networks/test.dat")
+    main(net, path_template="src/jaff/templates/preprocessor/kokkos_ode")

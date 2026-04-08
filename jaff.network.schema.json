@@ -96,17 +96,7 @@
     },
     "rate_symbol_name": {
       "type": "string",
-      "enum": [
-        "tgas",
-        "tdust",
-        "av",
-        "crate",
-        "fuv",
-        "asize",
-        "nuth",
-        "sigmah",
-        "m"
-      ],
+      "enum": ["tgas", "tdust", "av", "crate", "fuv", "asize", "nuth", "sigmah", "m"],
       "description": "Standardized JAFF rate symbols used in this codebase; see rate_symbol_vocabulary for meanings. Algebraic shorthands (e.g., t32, invtgas), aliases (e.g., user_av), and species number-density shortcuts (e.g., nh, ne, ntot) must be expanded into the SymPy AST instead of being listed as rate symbols."
     },
     "rate_symbol_vocabulary": {
@@ -185,10 +175,7 @@
           "type": "string"
         },
         "xsecs": {
-          "oneOf": [
-            {"type": "null"},
-            {"$ref": "#/$defs/xsecs"}
-          ]
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/xsecs" }]
         }
       }
     },
@@ -214,9 +201,9 @@
     "encoded_value": {
       "description": "Encoded value used for rate and dE. Either null, a wrapped literal string, or a JAFF SymPy JSON expression.",
       "oneOf": [
-        {"type": "null"},
-        {"$ref": "#/$defs/encoded_string"},
-        {"$ref": "#/$defs/sympy_expr"}
+        { "type": "null" },
+        { "$ref": "#/$defs/encoded_string" },
+        { "$ref": "#/$defs/sympy_expr" }
       ]
     },
     "encoded_string": {
@@ -234,51 +221,44 @@
     },
     "sympy_expr": {
       "description": "Compact JAFF SymPy JSON expression node (schema_version=2).",
-      "anyOf": [
-        {"type": "number"},
-        {"$ref": "#/$defs/sympy_node"}
-      ]
+      "anyOf": [{ "type": "number" }, { "$ref": "#/$defs/sympy_node" }]
     },
     "sympy_node": {
       "oneOf": [
-        {"$ref": "#/$defs/sympy_true"},
-        {"$ref": "#/$defs/sympy_false"},
-        {"$ref": "#/$defs/sympy_symbol"},
-        {"$ref": "#/$defs/sympy_integer"},
-        {"$ref": "#/$defs/sympy_rational"},
-        {"$ref": "#/$defs/sympy_float"},
-        {"$ref": "#/$defs/sympy_str"},
-        {"$ref": "#/$defs/sympy_matrix_symbol"},
-        {"$ref": "#/$defs/sympy_matrix_element"},
-        {"$ref": "#/$defs/sympy_expr_cond_pair"},
-        {"$ref": "#/$defs/sympy_strict_lt"},
-        {"$ref": "#/$defs/sympy_strict_gt"},
-        {"$ref": "#/$defs/sympy_piecewise"},
-        {"$ref": "#/$defs/sympy_pow"},
-        {"$ref": "#/$defs/sympy_add"},
-        {"$ref": "#/$defs/sympy_mul"},
-        {"$ref": "#/$defs/sympy_exp"},
-        {"$ref": "#/$defs/sympy_log"},
-        {"$ref": "#/$defs/sympy_max"},
-        {"$ref": "#/$defs/sympy_min"}
+        { "$ref": "#/$defs/sympy_true" },
+        { "$ref": "#/$defs/sympy_false" },
+        { "$ref": "#/$defs/sympy_symbol" },
+        { "$ref": "#/$defs/sympy_integer" },
+        { "$ref": "#/$defs/sympy_rational" },
+        { "$ref": "#/$defs/sympy_float" },
+        { "$ref": "#/$defs/sympy_str" },
+        { "$ref": "#/$defs/sympy_matrix_symbol" },
+        { "$ref": "#/$defs/sympy_matrix_element" },
+        { "$ref": "#/$defs/sympy_expr_cond_pair" },
+        { "$ref": "#/$defs/sympy_strict_lt" },
+        { "$ref": "#/$defs/sympy_strict_gt" },
+        { "$ref": "#/$defs/sympy_piecewise" },
+        { "$ref": "#/$defs/sympy_pow" },
+        { "$ref": "#/$defs/sympy_add" },
+        { "$ref": "#/$defs/sympy_mul" },
+        { "$ref": "#/$defs/sympy_exp" },
+        { "$ref": "#/$defs/sympy_log" },
+        { "$ref": "#/$defs/sympy_max" },
+        { "$ref": "#/$defs/sympy_min" }
       ]
     },
     "sympy_true": {
       "type": "array",
       "minItems": 1,
       "maxItems": 1,
-      "prefixItems": [
-        {"const": "T"}
-      ],
+      "prefixItems": [{ "const": "T" }],
       "items": false
     },
     "sympy_false": {
       "type": "array",
       "minItems": 1,
       "maxItems": 1,
-      "prefixItems": [
-        {"const": "F"}
-      ],
+      "prefixItems": [{ "const": "F" }],
       "items": false
     },
     "sympy_symbol": {
@@ -287,10 +267,7 @@
           "type": "array",
           "minItems": 2,
           "maxItems": 2,
-          "prefixItems": [
-            {"const": "S"},
-            {"type": "string"}
-          ],
+          "prefixItems": [{ "const": "S" }, { "type": "string" }],
           "items": false
         },
         {
@@ -298,11 +275,11 @@
           "minItems": 3,
           "maxItems": 3,
           "prefixItems": [
-            {"const": "S"},
-            {"type": "string"},
+            { "const": "S" },
+            { "type": "string" },
             {
               "type": "object",
-              "additionalProperties": {"type": "boolean"}
+              "additionalProperties": { "type": "boolean" }
             }
           ],
           "items": false
@@ -313,42 +290,28 @@
       "type": "array",
       "minItems": 2,
       "maxItems": 2,
-      "prefixItems": [
-        {"const": "I"},
-        {"type": "integer"}
-      ],
+      "prefixItems": [{ "const": "I" }, { "type": "integer" }],
       "items": false
     },
     "sympy_rational": {
       "type": "array",
       "minItems": 3,
       "maxItems": 3,
-      "prefixItems": [
-        {"const": "Q"},
-        {"type": "integer"},
-        {"type": "integer"}
-      ],
+      "prefixItems": [{ "const": "Q" }, { "type": "integer" }, { "type": "integer" }],
       "items": false
     },
     "sympy_float": {
       "type": "array",
       "minItems": 3,
       "maxItems": 3,
-      "prefixItems": [
-        {"const": "Flt"},
-        {"type": "string"},
-        {"type": "integer"}
-      ],
+      "prefixItems": [{ "const": "Flt" }, { "type": "string" }, { "type": "integer" }],
       "items": false
     },
     "sympy_str": {
       "type": "array",
       "minItems": 2,
       "maxItems": 2,
-      "prefixItems": [
-        {"const": "Str"},
-        {"type": "string"}
-      ],
+      "prefixItems": [{ "const": "Str" }, { "type": "string" }],
       "items": false
     },
     "sympy_matrix_symbol": {
@@ -356,10 +319,10 @@
       "minItems": 4,
       "maxItems": 4,
       "prefixItems": [
-        {"const": "MS"},
-        {"type": "string"},
-        {"$ref": "#/$defs/sympy_expr"},
-        {"$ref": "#/$defs/sympy_expr"}
+        { "const": "MS" },
+        { "type": "string" },
+        { "$ref": "#/$defs/sympy_expr" },
+        { "$ref": "#/$defs/sympy_expr" }
       ],
       "items": false
     },
@@ -368,10 +331,10 @@
       "minItems": 4,
       "maxItems": 4,
       "prefixItems": [
-        {"const": "ME"},
-        {"$ref": "#/$defs/sympy_expr"},
-        {"$ref": "#/$defs/sympy_expr"},
-        {"$ref": "#/$defs/sympy_expr"}
+        { "const": "ME" },
+        { "$ref": "#/$defs/sympy_expr" },
+        { "$ref": "#/$defs/sympy_expr" },
+        { "$ref": "#/$defs/sympy_expr" }
       ],
       "items": false
     },
@@ -380,9 +343,9 @@
       "minItems": 3,
       "maxItems": 3,
       "prefixItems": [
-        {"const": "ECP"},
-        {"$ref": "#/$defs/sympy_expr"},
-        {"$ref": "#/$defs/sympy_expr"}
+        { "const": "ECP" },
+        { "$ref": "#/$defs/sympy_expr" },
+        { "$ref": "#/$defs/sympy_expr" }
       ],
       "items": false
     },
@@ -391,9 +354,9 @@
       "minItems": 3,
       "maxItems": 3,
       "prefixItems": [
-        {"const": "LT"},
-        {"$ref": "#/$defs/sympy_expr"},
-        {"$ref": "#/$defs/sympy_expr"}
+        { "const": "LT" },
+        { "$ref": "#/$defs/sympy_expr" },
+        { "$ref": "#/$defs/sympy_expr" }
       ],
       "items": false
     },
@@ -402,9 +365,9 @@
       "minItems": 3,
       "maxItems": 3,
       "prefixItems": [
-        {"const": "GT"},
-        {"$ref": "#/$defs/sympy_expr"},
-        {"$ref": "#/$defs/sympy_expr"}
+        { "const": "GT" },
+        { "$ref": "#/$defs/sympy_expr" },
+        { "$ref": "#/$defs/sympy_expr" }
       ],
       "items": false
     },
@@ -413,11 +376,11 @@
       "minItems": 2,
       "maxItems": 2,
       "prefixItems": [
-        {"const": "PW"},
+        { "const": "PW" },
         {
           "type": "array",
           "minItems": 1,
-          "items": {"$ref": "#/$defs/sympy_expr_cond_pair"}
+          "items": { "$ref": "#/$defs/sympy_expr_cond_pair" }
         }
       ],
       "items": false
@@ -427,9 +390,9 @@
       "minItems": 3,
       "maxItems": 3,
       "prefixItems": [
-        {"const": "Pow"},
-        {"$ref": "#/$defs/sympy_expr"},
-        {"$ref": "#/$defs/sympy_expr"}
+        { "const": "Pow" },
+        { "$ref": "#/$defs/sympy_expr" },
+        { "$ref": "#/$defs/sympy_expr" }
       ],
       "items": false
     },
@@ -438,10 +401,10 @@
       "minItems": 2,
       "maxItems": 2,
       "prefixItems": [
-        {"const": "Add"},
+        { "const": "Add" },
         {
           "type": "array",
-          "items": {"$ref": "#/$defs/sympy_expr"}
+          "items": { "$ref": "#/$defs/sympy_expr" }
         }
       ],
       "items": false
@@ -451,10 +414,10 @@
       "minItems": 2,
       "maxItems": 2,
       "prefixItems": [
-        {"const": "Mul"},
+        { "const": "Mul" },
         {
           "type": "array",
-          "items": {"$ref": "#/$defs/sympy_expr"}
+          "items": { "$ref": "#/$defs/sympy_expr" }
         }
       ],
       "items": false
@@ -463,10 +426,7 @@
       "type": "array",
       "minItems": 2,
       "maxItems": 2,
-      "prefixItems": [
-        {"const": "exp"},
-        {"$ref": "#/$defs/sympy_expr"}
-      ],
+      "prefixItems": [{ "const": "exp" }, { "$ref": "#/$defs/sympy_expr" }],
       "items": false
     },
     "sympy_log": {
@@ -474,12 +434,12 @@
       "minItems": 2,
       "maxItems": 2,
       "prefixItems": [
-        {"const": "log"},
+        { "const": "log" },
         {
           "type": "array",
           "minItems": 1,
           "maxItems": 2,
-          "items": {"$ref": "#/$defs/sympy_expr"}
+          "items": { "$ref": "#/$defs/sympy_expr" }
         }
       ],
       "items": false
@@ -489,10 +449,10 @@
       "minItems": 2,
       "maxItems": 2,
       "prefixItems": [
-        {"const": "Max"},
+        { "const": "Max" },
         {
           "type": "array",
-          "items": {"$ref": "#/$defs/sympy_expr"}
+          "items": { "$ref": "#/$defs/sympy_expr" }
         }
       ],
       "items": false
@@ -502,10 +462,10 @@
       "minItems": 2,
       "maxItems": 2,
       "prefixItems": [
-        {"const": "Min"},
+        { "const": "Min" },
         {
           "type": "array",
-          "items": {"$ref": "#/$defs/sympy_expr"}
+          "items": { "$ref": "#/$defs/sympy_expr" }
         }
       ],
       "items": false

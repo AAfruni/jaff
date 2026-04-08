@@ -1,20 +1,24 @@
-import os
+from jaff import Codegen, Network, Preprocessor
 
 
 def main(network, path_template, path_build=None):
-    from jaff.preprocessor import Preprocessor
-
     p = Preprocessor()
+    cg = Codegen(network=network, lang="fortran")
 
-    scommons = network.get_commons(idx_offset=1, definition_prefix="integer,parameter::")
-    rates = network.get_rates(language="f90")
-    sflux = network.get_fluxes(language="f90")
-    sode = network.get_ode(derivative_variable="dn", language="f90")
+    scommons = cg.get_commons(idx_offset=1, definition_prefix="integer,parameter::")
+    rates = cg.get_rates_str()
+    flux = cg.get_flux_expressions_str()
+    sode = cg.get_ode_expressions_str(derivative_var="dn")
 
     p.preprocess(
         path_template,
         ["commons.f90", "ode.f90", "fluxes.f90", "reactions.f90"],
-        [{"COMMONS": scommons}, {"ODE": sode}, {"FLUXES": sflux}, {"REACTIONS": rates}],
+        [{"COMMONS": scommons}, {"ODE": sode}, {"FLUXES": flux}, {"REACTIONS": rates}],
         comment="!!",
         path_build=path_build,
     )
+
+
+if __name__ == "__main__":
+    net = Network("networks/test.dat")
+    main(net, path_template="src/jaff/templates/preprocessor/fortran_dlsodes")

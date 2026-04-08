@@ -8,8 +8,11 @@ An astrochemical network parser for various reaction network formats.
 
 __version__ = "0.1.0"
 
+from .builder import Builder
+from .codegen import Codegen
 from .network import Network
+from .preprocessor import Preprocessor
 from .reaction import Reaction
 from .species import Species
 
-__all__ = ["Network", "Reaction", "Species"]
+__all__ = ["Builder", "Network", "Reaction", "Species", "Codegen", "Preprocessor"]

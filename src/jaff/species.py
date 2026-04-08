@@ -23,6 +23,12 @@ class Species:
         self.parse(mass_dict)
         self.serialize()
 
+    def __repr__(self):
+        return f"Species(name={self.name!r}, mass={self.mass!r}, index={self.index!r})"
+
+    def __str__(self):
+        return self.name
+
     # ********************
     def get_fidx(self):
         if self.name == "e-":

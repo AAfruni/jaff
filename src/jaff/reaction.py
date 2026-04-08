@@ -20,11 +20,23 @@ class Reaction:
         )
         self.original_string = original_string
         # Add verbatim property for backward compatibility
-        self.verbatim = self.get_verbatim()
+        self.verbatim: str = self.get_verbatim()
 
         self.check(errors)
         self.serialized_exploded = self.serialize_exploded()
         self.serialized = self.serialize()
+        self.metadata: dict = {}
+
+        # Add type metadata to reaction
+        self.guess_type()
+
+    def __repr__(self):
+        return (
+            f"Reaction({self.verbatim}, tmin={self.tmin}, tmax={self.tmax}, dE={self.dE})"
+        )
+
+    def __str__(self):
+        return self.verbatim
 
     def guess_type(self):
         from sympy import Function, symbols
@@ -47,6 +59,8 @@ class Reaction:
                 rtype = "photo_av"
             elif self.rate.has(symbols("ntot")):
                 rtype = "3_body"
+
+        self.metadata["type"] = rtype
 
         return rtype
 
@@ -117,7 +131,7 @@ class Reaction:
         )
         return "$" + latex + "$"
 
-    def get_flux(
+    def get_flux_expression(
         self, idx=0, rate_variable="k", species_variable="y", brackets="[]", idx_prefix=""
     ):
         if len(brackets) != 2:
@@ -146,31 +160,45 @@ class Reaction:
             species = [species]
         return any([x.name in species for x in self.products])
 
-    def get_python(self):
-        from sympy import Function
-        from sympy.printing.numpy import NumPyPrinter
+    def get_code(self, lang="cpp"):
+        """
+        Generate code for the reaction rate in the specified language.
 
-        if type(self.rate) is str:
-            return self.rate
-        # Handle photorates function specially
-        if hasattr(self.rate, "func") and isinstance(self.rate.func, type(Function("f"))):
-            if self.rate.func.__name__ == "photorates":
-                # Return a placeholder that will be replaced later
-                return f"photorates(#IDX#, {', '.join(str(arg) for arg in self.rate.args[1:])})"
-        return NumPyPrinter().doprint(self.rate).replace("numpy.", "np.")
+        Args:
+            lang: Target programming language. Default: "cpp"
+                Supported: "python", "c", "cxx", "fortran", "rust", "julia", "r"
 
-    def get_c(self):
-        return sympy.ccode(self.get_sympy(), strict=False)
+        Returns:
+            Code string for the reaction rate expression
 
-    def get_cpp(self):
-        # Use C++ code generation
-        cpp_code = sympy.cxxcode(self.get_sympy(), strict=False)
-        # Replace std:: prefix with Kokkos:: for math functions
-        cpp_code = cpp_code.replace("std::", "Kokkos::")
-        return cpp_code
+        Raises:
+            ValueError: If the language is not supported
+        """
+        fmap = {
+            "python": sympy.pycode,
+            "c": sympy.ccode,
+            "cxx": sympy.cxxcode,
+            "fortran": sympy.fcode,
+            "rust": sympy.rust_code,
+            "julia": sympy.julia_code,
+            "r": sympy.rcode,
+        }
 
-    def get_f90(self):
-        return sympy.fcode(self.get_sympy(), strict=False)
+        if not fmap.get(lang, ""):
+            raise ValueError(
+                f"{lang} is not supported. Supported languages are:\n\n{fmap.keys()}"
+            )
+        if (
+            hasattr(self.rate, "func")
+            and isinstance(self.rate.func, type(sympy.Function("f")))
+            and self.rate.func.__name__ == "photorates"
+        ):
+            # Return a placeholder that will be replaced later
+            return (
+                f"photorates($IDX$, {', '.join(str(arg) for arg in self.rate.args[1:])})"
+            )
+
+        return fmap[lang](self.get_sympy(), strict=False)
 
     def get_sympy(self):
         return sympy.sympify(self.rate)

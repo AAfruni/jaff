@@ -1,8 +1,8 @@
+import gzip
+import json
 import os
 import re
 import sys
-from functools import reduce
-from typing import Tuple
 
 import h5py
 import numpy as np
@@ -20,9 +20,8 @@ from sympy import (
 )
 from sympy.core.function import UndefinedFunction
 from tqdm import tqdm
-import json
-import gzip
 
+from .drivers.sqlite import JaffDb
 from .fastlog import fast_log2, inverse_fast_log2
 from .function_parser import parse_funcfile
 from .parsers import (
@@ -40,7 +39,17 @@ from .species import Species
 
 class Network:
     # ****************
-    def __init__(self, fname, errors=False, label=None, funcfile=None, replace_nH=True):
+    def __init__(
+        self,
+        fname,
+        errors=False,
+        label=None,
+        funcfile=None,
+        replace_nH=True,
+        rad_bands=[],
+        rad_powerlaw_index: int | float = 0,
+        rad_energy_density: bool = False,
+    ):
         self.motd()
 
         # Get the path to the data file relative to this module
@@ -49,7 +58,7 @@ class Network:
         self.species = []
         self.species_dict = {}
         self.reactions_dict = {}
-        self.reactions = []
+        self.reactions: list[Reaction] = []
         self.rlist = self.plist = None
         self.dEdt_chem = parse_expr("0")
         self.dEdt_other = parse_expr("0")
@@ -61,7 +70,9 @@ class Network:
 
         self.photochemistry = Photochemistry()
 
-        self.load_network(fname, funcfile, replace_nH)
+        self.load_network(
+            fname, funcfile, replace_nH, rad_bands, rad_powerlaw_index, rad_energy_density
+        )
 
         self.check_sink_sources(errors)
         self.check_recombinations(errors)
@@ -104,7 +115,15 @@ class Network:
         return mass_dict
 
     # ****************
-    def load_network(self, fname, funcfile, replace_nH):
+    def load_network(
+        self,
+        fname,
+        funcfile,
+        replace_nH,
+        rad_bands,
+        rad_powerlaw_index,
+        rad_energy_density,
+    ):
         default_species = []  # ["dummy", "CR", "CRP", "Photon"]
         self.species = [
             Species(s, self.mass_dict, i) for i, s in enumerate(default_species)
@@ -244,13 +263,13 @@ class Network:
 
             # use lowercase for rate
             rate = rate.lower().strip()
+            is_photoreaction = False
 
             # parse rate with sympy
             # photo-chemistry
             if "photo" in rate.lower():
+                is_photoreaction = True
                 # Extract arguments from photo(arg1, arg2) format
-                import re
-
                 match = re.match(r"(?i)photo\((.*)\)", rate)
                 if match:
                     args_str = match.group(1)
@@ -400,6 +419,15 @@ class Network:
                     # End if no replacements done
                     if not did_replace:
                         break
+
+            if is_photoreaction and rad_bands:
+                # Get photo rates
+                rate = (
+                    self.get_prate_from_db(
+                        rr, rad_bands, rad_powerlaw_index, rad_energy_density
+                    )
+                    or rate
+                )
 
             # create a Reaction object
             rea = Reaction(rr, pp, rate, tmin, tmax, deltaE, srow)
@@ -563,10 +591,13 @@ class Network:
         """
         filename = os.fspath(filename)
         if not (str(filename).endswith(".jaff") or str(filename).endswith(".jaff.gz")):
-            raise ValueError("Network.to_jaff_file requires a filename ending with '.jaff' or '.jaff.gz'")
+            raise ValueError(
+                "Network.to_jaff_file requires a filename ending with '.jaff' or '.jaff.gz'"
+            )
 
         from . import __version__ as jaff_version
-        from .sympy_json import to_jsonable as sympy_to_jsonable, SCHEMA_VERSION as SYMPY_SCHEMA
+        from .sympy_json import SCHEMA_VERSION as SYMPY_SCHEMA
+        from .sympy_json import to_jsonable as sympy_to_jsonable
 
         def has_undefined_functions(expr):
             if not isinstance(expr, sympy.Basic):
@@ -581,7 +612,9 @@ class Network:
                 return {"kind": "string", "value": value}
             if isinstance(value, sympy.Basic):
                 if has_undefined_functions(value):
-                    raise ValueError("Cannot serialize: expression contains undefined SymPy function(s)")
+                    raise ValueError(
+                        "Cannot serialize: expression contains undefined SymPy function(s)"
+                    )
                 return sympy_to_jsonable(value, include_assumptions=False)
             if value is None:
                 return None
@@ -620,7 +653,11 @@ class Network:
             "rate_symbols": [
                 {
                     "name": sym.name,
-                    "assumptions": {k: v for k, v in (sym.assumptions0 or {}).items() if isinstance(k, str) and isinstance(v, bool)},
+                    "assumptions": {
+                        k: v
+                        for k, v in (sym.assumptions0 or {}).items()
+                        if isinstance(k, str) and isinstance(v, bool)
+                    },
                 }
                 for sym in sorted(
                     {
@@ -681,7 +718,9 @@ class Network:
         if not isinstance(payload, dict) or payload.get("format") != "jaff.network_json":
             raise ValueError("Not a jaff.network_json file")
         if payload.get("schema_version") != 1:
-            raise ValueError(f"Unsupported Network schema_version={payload.get('schema_version')!r}")
+            raise ValueError(
+                f"Unsupported Network schema_version={payload.get('schema_version')!r}"
+            )
 
         # Build an instance without going through __init__ (which parses files).
         net = cls.__new__(cls)
@@ -736,7 +775,9 @@ class Network:
                 if not isinstance(name, str) or not isinstance(assumptions, dict):
                     continue
                 rate_symbol_assumptions[name] = {
-                    k: v for k, v in assumptions.items() if isinstance(k, str) and isinstance(v, bool)
+                    k: v
+                    for k, v in assumptions.items()
+                    if isinstance(k, str) and isinstance(v, bool)
                 }
 
         def apply_symbol_assumptions(expr):
@@ -1040,191 +1081,6 @@ class Network:
         return self.reactions[idx].get_verbatim()
 
     # ****************
-    def get_commons(self, idx_offset=0, idx_prefix="", definition_prefix=""):
-        scommons = ""
-        for i, sp in enumerate(self.species):
-            scommons += f"{definition_prefix}{idx_prefix}{sp.fidx} = {idx_offset + i}\n"
-
-        scommons += f"{definition_prefix}nspecs = {len(self.species)}\n"
-        scommons += f"{definition_prefix}nreactions = {len(self.reactions)}\n"
-
-        return scommons
-
-    # ****************
-    def get_rates(self, idx_offset=0, rate_variable="k", language="python", use_cse=True):
-        if language in ["fortran", "f90"]:
-            brackets = "()"
-            if idx_offset == 0:
-                idx_offset = 1
-        elif language in ["c++", "cpp", "cxx"]:
-            brackets = "[]"
-        else:
-            brackets = "[]"
-            idx_offset = 0
-
-        lb, rb = brackets[0], brackets[1]
-
-        rates = ""
-
-        # For C++ with CSE enabled, collect all rate expressions and apply CSE
-        if language in ["c++", "cpp", "cxx"] and use_cse:
-            from sympy import Function, cse, cxxcode
-
-            # Collect all rate expressions as SymPy objects
-            rate_exprs = []
-            photo_indices = []
-            for i, rea in enumerate(self.reactions):
-                if type(rea.rate) is str:
-                    # String rates are kept as-is (will be handled separately)
-                    rate_exprs.append(None)
-                elif hasattr(rea.rate, "func") and isinstance(
-                    rea.rate.func, type(Function("f"))
-                ):
-                    if rea.rate.func.__name__ == "photorates":
-                        # Photorates are handled specially
-                        rate_exprs.append(None)
-                        photo_indices.append(i)
-                    else:
-                        rate_exprs.append(rea.rate)
-                else:
-                    rate_exprs.append(rea.rate)
-
-            # Filter out None values for CSE
-            valid_exprs = [
-                (i, expr) for i, expr in enumerate(rate_exprs) if expr is not None
-            ]
-
-            if valid_exprs:
-                # Apply CSE to all valid expressions
-                indices, exprs = zip(*valid_exprs)
-                replacements, reduced_exprs = cse(exprs, optimizations="basic")
-
-                # Prune unused CSE temporaries based on actually emitted rate expressions
-                # Build the set of CSE symbols that appear in the reduced expressions
-                if replacements:
-                    cse_syms = [var for var, _ in replacements]
-                    cse_set = set(cse_syms)
-                    used = set()
-                    for e in reduced_exprs:
-                        used |= e.free_symbols & cse_set
-                    # Propagate dependencies transitively
-                    dep_map = {var: expr for var, expr in replacements}
-                    changed = True
-                    while changed:
-                        changed = False
-                        addl = set()
-                        for v in list(used):
-                            ev = dep_map.get(v)
-                            if ev is None:
-                                continue
-                            deps = ev.free_symbols & cse_set
-                            new_deps = deps - used
-                            if new_deps:
-                                addl |= new_deps
-                        if addl:
-                            used |= addl
-                            changed = True
-                    # Keep replacements in original order
-                    replacements = [
-                        (var, dep_map[var]) for var, _ in replacements if var in used
-                    ]
-
-                # Generate code for common subexpressions (only those actually used)
-                if replacements:
-                    rates += "// Common subexpressions\n"
-                    for i, (var, expr) in enumerate(replacements):
-                        cpp_expr = cxxcode(expr, strict=False).replace(
-                            "std::", "Kokkos::"
-                        )
-                        rates += f"const double {var} = {cpp_expr};\n"
-
-                if replacements:
-                    rates += "\n// Rate calculations using common subexpressions\n"
-
-                # Generate code for reduced rate expressions
-                expr_dict = dict(zip(indices, reduced_exprs))
-
-                # Generate all rate assignments
-                for i, rea in enumerate(self.reactions):
-                    if i in expr_dict:
-                        # Use CSE-optimized expression
-                        cpp_code = cxxcode(expr_dict[i], strict=False).replace(
-                            "std::", "Kokkos::"
-                        )
-                        rates += (
-                            f"{rate_variable}{lb}{idx_offset + i}{rb} = {cpp_code};\n"
-                        )
-                    elif type(rea.rate) is str:
-                        # String rate
-                        rate = rea.rate
-                        if rea.guess_type() == "photo":
-                            rate = rate.replace("#IDX#", str(idx_offset + i))
-                        rates += f"{rate_variable}{lb}{idx_offset + i}{rb} = {rate};\n"
-                    elif i in photo_indices:
-                        # Photorates
-                        rate = f"photorates(#IDX#, {', '.join(str(arg) for arg in rea.rate.args[1:])})"
-                        rate = rate.replace("#IDX#", str(idx_offset + i))
-                        rates += f"{rate_variable}{lb}{idx_offset + i}{rb} = {rate};\n"
-                    else:
-                        # Fallback to regular code generation
-                        rate = rea.get_cpp()
-                        if rea.guess_type() == "photo":
-                            rate = rate.replace("#IDX#", str(idx_offset + i))
-                        rates += f"{rate_variable}{lb}{idx_offset + i}{rb} = {rate};\n"
-            else:
-                # No valid expressions for CSE, use regular generation
-                for i, rea in enumerate(self.reactions):
-                    rate = rea.get_cpp()
-                    if rea.guess_type() == "photo":
-                        rate = rate.replace("#IDX#", str(idx_offset + i))
-                    rates += f"{rate_variable}{lb}{idx_offset + i}{rb} = {rate};\n"
-        else:
-            # Original behavior for non-C++ or CSE disabled
-            for i, rea in enumerate(self.reactions):
-                if language in ["python", "py"]:
-                    rate = rea.get_python()
-                elif language in ["fortran", "f90"]:
-                    rate = rea.get_f90()
-                elif language in ["c++", "cpp", "cxx"]:
-                    rate = rea.get_cpp()
-                else:
-                    rate = rea.get_python()
-                if rea.guess_type() == "photo":
-                    rate = rate.replace("#IDX#", str(idx_offset + i))
-                if language in ["c++", "cpp", "cxx"]:
-                    rates += f"{rate_variable}{lb}{idx_offset + i}{rb} = {rate};\n"
-                else:
-                    rates += f"{rate_variable}{lb}{idx_offset + i}{rb} = {rate}\n"
-
-        return rates
-
-    # ****************
-    def get_fluxes(
-        self, rate_variable="k", species_variable="y", idx_prefix="", language="python"
-    ):
-        if language in ["fortran", "f90"]:
-            brackets = "()"
-            idx_offset = 1
-        else:
-            brackets = "[]"
-            idx_offset = 0
-
-        lb, rb = brackets[0], brackets[1]
-
-        fluxes = ""
-        for i, rea in enumerate(self.reactions):
-            flux = rea.get_flux(
-                idx=idx_offset + i,
-                rate_variable=rate_variable,
-                species_variable=species_variable,
-                brackets=brackets,
-                idx_prefix=idx_prefix,
-            )
-            fluxes += f"flux{lb}{idx_offset + i}{rb} = {flux};\n"
-
-        return fluxes
-
-    # ****************
     def standardize_symbols(self, expr, replace_nH):
         """
         This routine applies a set of standard substitution rules to
@@ -1321,7 +1177,7 @@ class Network:
                 if spec_name == "all_He":
                     if replace_nH:
                         for spec in self.species:
-                            count = spec.exploded.count("H")
+                            count = spec.exploded.count("He")
                             if count > 0:
                                 if repl is None:
                                     repl = count * nden[Idx(self.species_dict[spec.name])]
@@ -1338,394 +1194,6 @@ class Network:
 
         # Return
         return expr
-
-    # ****************
-    def get_ode(
-        self,
-        idx_offset=0,
-        flux_variable="flux",
-        brackets="[]",
-        species_variable="y",
-        idx_prefix="",
-        derivative_prefix="d",
-        derivative_variable=None,
-        language="python",
-    ):
-        if language in ["fortran", "f90"]:
-            brackets = "()"
-            if idx_offset == 0:
-                idx_offset = 1
-        else:
-            brackets = "[]"
-            idx_offset = 0
-
-        lb, rb = brackets[0], brackets[1]
-
-        ode = {}
-        for i, rea in enumerate(self.reactions):
-            for rr in rea.reactants:
-                rrfidx = idx_prefix + rr.fidx
-                if rrfidx not in ode:
-                    ode[rrfidx] = ""
-                ode[rrfidx] += f" - {flux_variable}{lb}{idx_offset + i}{rb}"
-            for pp in rea.products:
-                ppfidx = idx_prefix + pp.fidx
-                if ppfidx not in ode:
-                    ode[ppfidx] = ""
-                ode[ppfidx] += f" + {flux_variable}{lb}{idx_offset + i}{rb}"
-
-        sode = ""
-        for name, expr in ode.items():
-            if derivative_variable is None:
-                derivative_var = f"{derivative_prefix}{species_variable}"
-            else:
-                derivative_var = derivative_variable
-            if language in ["c++", "cpp", "cxx"]:
-                sode += f"{derivative_var}{lb}{name}{rb} = {expr};\n"
-            else:
-                sode += f"{derivative_var}{lb}{name}{rb} = {expr}\n"
-
-        return sode
-
-    def get_dEdt(self, language="c++"):
-        """
-        Generate symbolic expressions for dE/dt.
-
-        Returns:
-            string: dE/dt expression
-        """
-        from sympy import cse, numbered_symbols, cxxcode
-
-
-        replacements, reduced_exprs = cse(self.dEdt_chem, symbols=numbered_symbols('cse'))
-        dEdt_reduced = reduced_exprs[:]
-
-        def _prune_cse(_repls, _exprs):
-            if not _repls:
-                return []
-            _cse_syms = [v for v, _ in _repls]
-            _cse_set = set(_cse_syms)
-            _used = set()
-            for _e in _exprs:
-                _used |= (_e.free_symbols & _cse_set)
-            if not _used:
-                return []
-            _dep_map = {v: e for v, e in _repls}
-            _changed = True
-            while _changed:
-                _changed = False
-                _addl = set()
-                for _v in list(_used):
-                    _ev = _dep_map.get(_v)
-                    if _ev is None:
-                        continue
-                    _deps = _ev.free_symbols & _cse_set
-                    _new = _deps - _used
-                    if _new:
-                        _addl |= _new
-                if _addl:
-                    _used |= _addl
-                    _changed = True
-            return [(v, _dep_map[v]) for v, _ in _repls if v in _used]
-
-
-
-        pruned_repls = _prune_cse(replacements, dEdt_reduced)
-        # Generate ODE code with only the needed CSE assignments
-        dEdt_code = ""
-        for i, (var, expr) in enumerate(pruned_repls):
-            expr_str = cxxcode(expr) if language in ["c++", "cpp", "cxx"] else str(expr)
-            dEdt_code += f"const double {var} = {expr_str}; \n"
-
-        expr_str = cxxcode(dEdt_reduced) if language in ["c++", "cpp", "cxx"] else str(dEdt_reduced)
-        dEdt_code += f"return {expr_str}; \n"
-
-        return dEdt_code
-
-
-    # *****************
-    def get_symbolic_ode_and_jacobian(
-        self, idx_offset=0, use_cse=True, language="c++", dedt_chem=False
-    ) -> Tuple[str, str]:
-        """
-        Generate symbolic ODE expressions and compute the analytical Jacobian.
-
-        Returns:
-            tuple: (ode_expressions, jacobian_expressions)
-                - ode_expressions: string containing the ODE expressions
-                - jacobian_expressions: string containing the Jacobian matrix elements
-        """
-        import sympy as sp
-        from sympy import Matrix, cse, diff, numbered_symbols, symbols, zeros
-
-        # Create symbolic variables representing species concentrations for Jacobian
-        # We use temporary scalar symbols y_i for robust SymPy manipulation, then
-        # remap names to `nden[i]` at codegen time to match templates.
-        n_species = len(self.species)
-        n_ode_eqns = n_species + int(dedt_chem)
-        y_syms = [symbols(f"y_{i}") for i in range(n_species)]
-
-        # Build mapping to replace any Indexed occurrences of nden[...] in rate expressions
-        # with the corresponding scalar y_i symbols.
-        from sympy import Idx, Indexed, IndexedBase
-
-        nden_base = IndexedBase("nden")
-        nden_matrix = MatrixSymbol("nden", n_species, 1)
-        nden_to_y = {}
-        for i in range(n_species):
-            # Support both nden[i] and nden[Idx(i)] forms
-            nden_to_y[Indexed(nden_base, i)] = y_syms[i]
-            nden_to_y[Indexed(nden_base, Idx(i))] = y_syms[i]
-            nden_to_y[nden_matrix[i, 0]] = y_syms[i]
-            nden_to_y[nden_matrix[Idx(i), 0]] = y_syms[i]
-
-        # Precompute rate expressions with nden[...] mapped to y_i
-        k_exprs = [rea.rate.xreplace(nden_to_y) for rea in self.reactions]
-
-        # Precompute specific internal energy equation
-        if dedt_chem:
-            den_tot = reduce(
-                lambda x, y: x + y,
-                [
-                    specie.mass * nden_to_y[nden_matrix[i, 0]]
-                    for i, specie in enumerate(self.species)
-                ],
-            )
-            dedt_chem_exp = self.dEdt_chem.xreplace(nden_to_y) / den_tot
-
-        # Build symbolic flux expressions using the full SymPy rate
-        # so that dependencies k(y) contribute via the chain rule.
-        flux_exprs = []
-        for i, rea in enumerate(self.reactions):
-            rate_expr = k_exprs[i]
-            # Replace any symbolic k[i] occurrences with the full rate expr, defensively
-            rate_symbol = symbols(f"k[{i}]")
-            rate_expr = rate_expr.xreplace({rate_symbol: k_exprs[i]})
-            flux = rate_expr
-            # Multiply by reactant concentrations (as y_syms)
-            for rr in rea.reactants:
-                if isinstance(rr.fidx, str):
-                    if rr.fidx.startswith("idx_"):
-                        idx = rr.index
-                    else:
-                        idx = int(rr.fidx)
-                else:
-                    idx = int(rr.fidx)
-                flux *= y_syms[idx]
-            flux_exprs.append(flux)
-
-        # Build symbolic ODE RHS using flux expressions
-        ode_symbols = [sp.Integer(0) for _ in range(n_species)]
-        for i, rea in enumerate(self.reactions):
-            # Subtract flux from reactants
-            for rr in rea.reactants:
-                if isinstance(rr.fidx, str):
-                    if rr.fidx.startswith("idx_"):
-                        idx = rr.index
-                    else:
-                        idx = int(rr.fidx)
-                else:
-                    idx = int(rr.fidx)
-                ode_symbols[idx] -= flux_exprs[i]
-
-            # Add flux to products
-            for pp in rea.products:
-                if isinstance(pp.fidx, str):
-                    if pp.fidx.startswith("idx_"):
-                        idx = pp.index
-                    else:
-                        idx = int(pp.fidx)
-                else:
-                    idx = int(pp.fidx)
-                ode_symbols[idx] += flux_exprs[i]
-
-        # Replace any remaining k[i] symbols defensively before differentiating
-        subs_k = {symbols(f"k[{i}]"): k_exprs[i] for i in range(len(self.reactions))}
-        ode_symbols = [expr.xreplace(subs_k) for expr in ode_symbols]
-
-        # Append specific internal energy rate equation conditionally
-        if dedt_chem:
-            ode_symbols.append(dedt_chem_exp)
-
-        # Compute the Jacobian matrix d(f)/d(y)
-        jacobian_matrix = Matrix(ode_symbols).jacobian(y_syms)
-
-        if dedt_chem:
-            # Calculate internal energy derivatives and append to jacobian matrix
-
-            dde = zeros(n_ode_eqns, 1)
-            dedot_dtgas = diff(self.__get_sym_eos(), symbols("tgas"))
-
-            for i in range(n_ode_eqns):
-                dxdot_dtgas = diff(ode_symbols[i], symbols("tgas"))
-                dde[i, 0] = dxdot_dtgas / dedot_dtgas
-
-            jacobian_matrix = jacobian_matrix.row_join(dde)
-
-        # Generate code strings
-        if language in ["c++", "cpp", "cxx"]:
-            brackets = "[]"
-            assignment_op = "="
-            line_end = ";"
-        else:  # Default to Python/Fortran style
-            brackets = "[]" if language == "python" else "()"
-            assignment_op = "="
-            line_end = ""
-
-        lb, rb = brackets[0], brackets[1]
-
-        # Apply common subexpression elimination if requested
-        if use_cse:
-            # Collect all expressions for CSE
-            all_exprs = ode_symbols + list(jacobian_matrix)
-            replacements, reduced_exprs = cse(all_exprs, symbols=numbered_symbols("cse"))
-
-            # Split reduced expressions back
-            ode_reduced = reduced_exprs[:n_ode_eqns]
-            jac_reduced = reduced_exprs[n_ode_eqns:]
-
-            # Helper: prune CSE replacements down to those used by a set of expressions
-            def _prune_cse(_repls, _exprs):
-                if not _repls:
-                    return []
-                _cse_syms = [v for v, _ in _repls]
-                _cse_set = set(_cse_syms)
-                _used = set()
-                for _e in _exprs:
-                    _used |= _e.free_symbols & _cse_set
-                if not _used:
-                    return []
-                _dep_map = {v: e for v, e in _repls}
-                _changed = True
-                while _changed:
-                    _changed = False
-                    _addl = set()
-                    for _v in list(_used):
-                        _ev = _dep_map.get(_v)
-                        if _ev is None:
-                            continue
-                        _deps = _ev.free_symbols & _cse_set
-                        _new = _deps - _used
-                        if _new:
-                            _addl |= _new
-                    if _addl:
-                        _used |= _addl
-                        _changed = True
-                return [(v, _dep_map[v]) for v, _ in _repls if v in _used]
-
-            # Build separate CSE blocks for RHS and Jacobian
-            repls_ode = _prune_cse(replacements, ode_reduced)
-            repls_jac = _prune_cse(replacements, jac_reduced)
-
-            # Generate ODE code with only the needed CSE assignments
-            ode_code = ""
-            for i, (var, expr) in enumerate(repls_ode):
-                expr_str = (
-                    sp.cxxcode(expr, allow_unknown_functions=True)
-                    if language in ["c++", "cpp", "cxx"]
-                    else str(expr)
-                )
-                import re as _re
-
-                for j in range(n_ode_eqns):
-                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
-                expr_str = expr_str.replace("[", lb).replace("]", rb)
-                ode_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
-
-            for i, expr in enumerate(ode_reduced):
-                expr_str = (
-                    sp.cxxcode(expr, allow_unknown_functions=True)
-                    if language in ["c++", "cpp", "cxx"]
-                    else str(expr)
-                )
-                import re as _re
-
-                for j in range(n_ode_eqns):
-                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
-                expr_str = expr_str.replace("[", lb).replace("]", rb)
-                ode_code += (
-                    f"f{lb}{idx_offset + i}{rb} {assignment_op} {expr_str}{line_end}\n"
-                )
-
-            # Generate Jacobian code with only the needed CSE assignments
-            jac_code = ""
-            for i, (var, expr) in enumerate(repls_jac):
-                expr_str = (
-                    sp.cxxcode(expr, allow_unknown_functions=True)
-                    if language in ["c++", "cpp", "cxx"]
-                    else str(expr)
-                )
-                import re as _re
-
-                for j in range(n_ode_eqns):
-                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
-                expr_str = expr_str.replace("[", lb).replace("]", rb)
-                jac_code += f"const double {var} {assignment_op} {expr_str}{line_end}\n"
-            for i in range(n_ode_eqns):
-                for j in range(n_ode_eqns):
-                    idx = i * n_ode_eqns + j
-                    expr = jac_reduced[idx]
-                    if expr != 0:
-                        expr_str = (
-                            sp.cxxcode(expr, allow_unknown_functions=True)
-                            if language in ["c++", "cpp", "cxx"]
-                            else str(expr)
-                        )
-                        import re as _re
-
-                        for m in range(n_ode_eqns):
-                            expr_str = _re.sub(
-                                rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str
-                            )
-                        expr_str = expr_str.replace("[", lb).replace("]", rb)
-                        # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
-                        if language in ["c++", "cpp", "cxx"]:
-                            jac_code += f"J({idx_offset + i}, {idx_offset + j}) {assignment_op} {expr_str}{line_end}\n"
-                        else:
-                            jac_code += f"J{lb}{idx_offset + i}{rb}{lb}{idx_offset + j}{rb} {assignment_op} {expr_str}{line_end}\n"
-        else:
-            # Generate ODE code without CSE
-            ode_code = ""
-            for i, expr in enumerate(ode_symbols):
-                expr_str = (
-                    sp.cxxcode(expr, allow_unknown_functions=True)
-                    if language in ["c++", "cpp", "cxx"]
-                    else str(expr)
-                )
-                import re as _re
-
-                for j in range(n_ode_eqns):
-                    expr_str = _re.sub(rf"\by_{j}\b", f"nden{lb}{j}{rb}", expr_str)
-                expr_str = expr_str.replace("[", lb).replace("]", rb)
-                ode_code += (
-                    f"f{lb}{idx_offset + i}{rb} {assignment_op} {expr_str}{line_end}\n"
-                )
-
-            # Generate Jacobian code without CSE
-            jac_code = ""
-            for i in range(n_ode_eqns):
-                for j in range(n_ode_eqns):
-                    expr = jacobian_matrix[i, j]
-                    if expr != 0:
-                        expr_str = (
-                            sp.cxxcode(expr, allow_unknown_functions=True)
-                            if language in ["c++", "cpp", "cxx"]
-                            else str(expr)
-                        )
-                        import re as _re
-
-                        for m in range(n_ode_eqns):
-                            expr_str = _re.sub(
-                                rf"\by_{m}\b", f"nden{lb}{m}{rb}", expr_str
-                            )
-                        expr_str = expr_str.replace("[", lb).replace("]", rb)
-                        # Use parentheses for Jacobian matrix access in C++ (Kokkos views)
-                        if language in ["c++", "cpp", "cxx"]:
-                            jac_code += f"J({idx_offset + i}, {idx_offset + j}) {assignment_op} {expr_str}{line_end}\n"
-                        else:
-                            jac_code += f"J{lb}{idx_offset + i}{rb}{lb}{idx_offset + j}{rb} {assignment_op} {expr_str}{line_end}\n"
-
-        return ode_code, jac_code
 
     # *****************
     def get_number_of_species(self):
@@ -1929,7 +1397,7 @@ class Network:
                 # not consistently generate numpy expressions that work properly
                 # with vector inputs, so restricting the input to scalars is safer.
                 f_eval = np.array([f(t) for t in temp])
-                log_rates[i, :] = np.clip(f_eval, a_min=None, a_max=rate_max)
+                log_rates[i, :] = np.clip(f_eval, a_min=None, a_max=np.log(rate_max))
 
         # Fifth step: do adaptive growth of table
         if err_tol is not None:
@@ -1949,8 +1417,8 @@ class Network:
                 log_rates_approx = np.zeros((len(react_func), (nTemp - 1) // 2))
                 for i, f in enumerate(react_func):
                     if isinstance(f, float):
-                        log_rates_grow[i, 1::2] = np.log(f)
-                        log_rates_approx[i, :] = np.log(f)
+                        log_rates_grow[i, 1::2] = f
+                        log_rates_approx[i, :] = f
                     elif f is None:
                         log_rates_grow[i, 1::2] = np.nan
                         log_rates_approx[i, :] = np.nan
@@ -1959,7 +1427,7 @@ class Network:
                         # here instead of a straight array operation
                         f_eval = np.array([f(t) for t in temp_grow[1::2]])
                         log_rates_grow[i, 1::2] = np.clip(
-                            f_eval, a_min=None, a_max=rate_max
+                            f_eval, a_min=None, a_max=np.log(rate_max)
                         )
                         log_rates_approx[i, :] = 0.5 * (
                             log_rates_grow[i, :-1:2] + log_rates_grow[i, 2::2]
@@ -1994,6 +1462,121 @@ class Network:
 
         # Return final table
         return temp, np.exp(log_rates)
+
+    def get_sfluxes(self) -> list[sympy.Expr]:
+        nspec = len(self.species)
+        nreact = len(self.reactions)
+        fluxes = [sympy.Integer(0)] * nreact
+        nden_matrix = MatrixSymbol("nden", nspec, 1)
+
+        for i, reaction in enumerate(self.reactions):
+            flux = reaction.rate
+            for reactant in reaction.reactants:
+                flux *= nden_matrix[self.species_dict[str(reactant)], 0]
+
+            fluxes[i] = flux
+
+        return fluxes
+
+    def get_sodes(self) -> list[sympy.Expr]:
+        nspec = len(self.species)
+        fluxes = self.get_sfluxes()
+        sodes = [sympy.Integer(0)] * nspec
+
+        for i, reaction in enumerate(self.reactions):
+            for rr in reaction.reactants:
+                idx = (
+                    rr.index
+                    if isinstance(rr.fidx, str) and rr.fidx.startswith("idx_")
+                    else int(rr.fidx)
+                )
+                sodes[idx] -= fluxes[i]
+
+            # Add flux to products
+            for pp in reaction.products:
+                idx = (
+                    pp.index
+                    if isinstance(pp.fidx, str) and pp.fidx.startswith("idx_")
+                    else int(pp.fidx)
+                )
+                sodes[idx] += fluxes[i]
+
+        return sodes
+
+    @staticmethod
+    def get_prate_from_db(
+        reactants: list[Species],
+        rad_bands: list[int | float | str | sympy.Basic],
+        rad_powerlaw_index: int | float,
+        rad_energy_density: bool,
+    ) -> sympy.Basic | None:
+        if rad_energy_density:
+            pl_index: float = float(rad_powerlaw_index) - 1.0
+            if pl_index == -1.0:
+                if isinstance(rad_bands[0], (float, int)) and float(rad_bands[0]) == 0.0:
+                    raise RuntimeError(
+                        f"The integral for average energy will diverge since the radiation band starts from rad_bands[0]: {rad_bands[0]}\n"
+                        "Please try a non-zero value"
+                    )
+                if rad_bands[-1] == sympy.oo:
+                    raise RuntimeError(
+                        f'The integral for average energy will diverge since the radiation band ends at rad_bands[{len(rad_bands) - 1}]: "inf"\n'
+                        "Please try a non-infinite value or change the power_law_index"
+                    )
+            elif pl_index + 1.0 > 0.0:
+                if rad_bands[-1] == sympy.oo:
+                    raise RuntimeError(
+                        f'The integral for average energy will diverge since the radiation band ends at rad_bands[{len(rad_bands) - 1}]: "inf"\n'
+                        "Please try a non-infinite value or change the power_law_index"
+                    )
+            elif pl_index + 1.0 < 0.0:
+                if isinstance(rad_bands[0], (float, int)) and float(rad_bands[0]) == 0.0:
+                    raise RuntimeError(
+                        f"The integral for average energy will diverge since the radiation band starts from rad_bands[0]: {rad_bands[0]}\n"
+                        "Please try a non-zero value"
+                    )
+
+        with JaffDb() as jdb:
+            table = jdb.table("verner_cross_sections")
+            xsec_present = False
+            rows = []
+            for reactant in reactants:
+                rows = table.rows(conditions=f"Ion = '{str(reactant)}'")
+                if rows:
+                    xsec_present = True
+                    break
+
+            if not xsec_present:
+                return None
+
+        if "inf" in rad_bands:
+            inf_index = rad_bands.index("inf")
+            rad_bands[inf_index] = sympy.oo
+
+        E = sympy.Symbol("E")
+        n_profile = E ** (rad_powerlaw_index - 2)
+        rate = sympy.Float(0.0)
+        xsec = sympy.sympify(rows[0]["xsecs"])
+        c = 2.99792458e10  # Speed of light in cgs unit
+
+        den = MatrixSymbol(
+            "radeden" if rad_energy_density else "photden", len(rad_bands) - 1, 1
+        )
+
+        for i, lower in enumerate(rad_bands[:-1]):
+            upper = rad_bands[i + 1]
+            n_tot = sympy.Integral(n_profile, (E, lower, upper)).evalf()
+            xsec_avg = sympy.Integral(xsec * n_profile, (E, lower, upper)).evalf() / n_tot
+
+            if rad_energy_density:
+                e_avg = sympy.Integral(E * n_profile, (E, lower, upper)).evalf() / n_tot
+                rate += den[Idx(i)] * xsec_avg / e_avg
+
+                continue
+
+            rate += den[Idx(i)] * xsec_avg
+
+        return c * rate
 
     # *****************
     def write_table(
@@ -2217,19 +1800,3 @@ class Network:
 
             # Close file
             fp.close()
-
-    def __get_sym_eos(self, gamma=1.6666666666667):
-        """
-
-        Returns the symbolic ideal specific internal energy given by
-        e = c_v * T where c_v is the specific heat capacity
-        at constant volume and is given by c_v = R / (gamma - 1)
-
-        """
-
-        from scipy.constants import R
-
-        _R = R * 1e7  # cgs unit
-        tgas = symbols("tgas")
-
-        return _R / (gamma - 1) * tgas
