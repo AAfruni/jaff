@@ -21,13 +21,14 @@ Examples:
 """
 
 import argparse
-import warnings
+from inspect import signature
 from pathlib import Path
 
-from jaff import Codegen as cg
-from jaff import Network
-from jaff.drivers.toml import Toml
-from jaff.file_parser import Fileparser
+from .codegen import Codegen as cg
+from .core.logger import JaffLogger
+from .drivers.toml import Toml
+from .file_parser import Fileparser
+from .network import Network, NetworkProps
 
 
 def main() -> None:
@@ -118,6 +119,7 @@ For more information, visit: https://github.com/tgrassi/jaff
         ],
         help="Default programming language for unsupported files (choices: %(choices)s)",
     )
+    logger = JaffLogger().get_logger()
     args: argparse.Namespace = parser.parse_args()
 
     # Extract command-line arguments
@@ -134,6 +136,7 @@ For more information, visit: https://github.com/tgrassi/jaff
     # Locate JAFF package directory and built-in template directory
     # Templates are stored in jaff/templates/generator/
     jaff_dir: Path = Path(__file__).parent
+    network_dir: Path = jaff_dir.parent.parent / "networks"
     generator_template_dir: Path = jaff_dir / "templates" / "generator"
     preprocessor_template_dir: Path = jaff_dir / "templates" / "preprocessor"
 
@@ -142,19 +145,24 @@ For more information, visit: https://github.com/tgrassi/jaff
         raise RuntimeError("No network file supplied. Please enter a network file")
 
     # Resolve and validate network file path
-    netfile: Path = Path(network_file).resolve()
-    if not netfile.exists():
+    netfile = Path(network_file)
+    netfile: Path = netfile.resolve() if netfile.is_symlink() else netfile
+    networks = {f.name for f in network_dir.iterdir() if f.is_file()}
+    is_predefined_network = str(netfile) in networks
+
+    if not netfile.exists() and not is_predefined_network:
         raise FileNotFoundError(f"Unable to find network file: {netfile}")
+
+    if is_predefined_network:
+        netfile = network_dir / netfile.name
 
     if not netfile.is_file():
         raise FileNotFoundError(f"{netfile} is not a valid file")
 
     # Handle output directory
     if output_dir is None:
-        warnings.warn(
-            "\n\nNo output directory has been supplied.\n"
-            f"Files will be generated at {Path.cwd()}"
-        )
+        logger.warning("No output directory has been supplied.")
+        logger.warning(f"Files will be generated at {Path.cwd()}")
 
     outdir: Path = (
         Path(output_dir).resolve() if output_dir is not None else jaff_dir / "generated"
@@ -224,27 +232,31 @@ For more information, visit: https://github.com/tgrassi/jaff
         raise ValueError(f"Unsupported language specified: {default_lang}")
 
     # Get index of jaff.toml config file
-    net_kwargs = {"fname": str(netfile)}
+    net_kwargs: NetworkProps = {"fname": str(netfile)}
     jaff_config_index: int | None = next(
         (i for i, f in enumerate(files) if f.name == "jaff.toml"), None
     )
 
     # Set radiation related props in radiation in present
     if jaff_config_index is not None:
+        net_params = signature(Network.__init__).parameters
         jaff_config_file = files[jaff_config_index]
         rad_props = Toml(jaff_config_file).get_key("radiation")
 
         if rad_props:
-            bands: list = rad_props.get("bands", [])
-            power: int | float = rad_props.get("power_law_index", 0)
-            energy_density: bool = rad_props.get("energy_density", False)
+            bands: list = rad_props.get("bands", net_params["rad_bands"].default)
+            power: int | float = rad_props.get(
+                "power_law_index", net_params["rad_powerlaw_index"].default
+            )
+            energy_density: bool = rad_props.get(
+                "energy_density", net_params["rad_energy_density"].default
+            )
+            c: float = rad_props.get("rsl", net_params["c"].default)
 
-            net_kwargs = {
-                **net_kwargs,
-                "rad_bands": bands,
-                "rad_powerlaw_index": power,
-                "rad_energy_density": energy_density,
-            }
+            net_kwargs["rad_bands"] = bands
+            net_kwargs["rad_powerlaw_index"] = power
+            net_kwargs["rad_energy_density"] = energy_density
+            net_kwargs["c"] = c
 
     # Create a new network instance
     net: Network = Network(**net_kwargs)
@@ -262,9 +274,10 @@ For more information, visit: https://github.com/tgrassi/jaff
         with open(outfile, "w") as f:
             f.write(lines)
 
-        print(f"{file.name} created at {outdir}")
+        logger.info(f"{file.name} created at {outdir}")
 
-    print(f"\nSuccessfully generated files\nGenerated files can be found at {outdir}")
+    logger.info("Successfully generated files")
+    logger.info(f"Generated files can be found at {outdir}")
 
 
 if __name__ == "__main__":

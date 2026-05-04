@@ -13,9 +13,9 @@ class Species:
 
         self.name = name
         self.mass = None
-        self.exploded = None
-        self.latex = None
-        self.charge = None
+        self.exploded = []
+        self.latex = ""
+        self.charge: int = 0
         self.index = index
         self.fidx = self.get_fidx()
         self.serialized = None
@@ -71,7 +71,7 @@ class Species:
                     expl += [pold] * max(int(p) - 1, 1)
             pold = p
         self.exploded = sorted([proxy_rev[x] for x in expl])
-        self.mass = sum([mass_dict[x] for x in self.exploded])
+        self.mass = sum([mass_dict[x]["mass"] for x in self.exploded])
 
         # latex name
         latex = self.name.strip()

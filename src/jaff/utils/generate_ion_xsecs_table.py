@@ -3,7 +3,8 @@ from pathlib import Path
 import pandas as pd
 from sympy import Expr, Piecewise, Symbol, srepr
 
-from jaff.drivers.sqlite import Db
+from jaff.core.logger import JaffLogger
+from jaff.drivers.sqlite import JaffDb
 
 
 def verner_xsecs(
@@ -27,17 +28,17 @@ def verner_xsecs(
     E = Symbol("E")
     x = E / E0 - y0
     y = (x * x + y1 * y1) ** 0.5
+    mb = 1e-18  # Units of cm^2
 
-    return Piecewise((sigma0 * F(x, y), (E >= Emin) & (E <= Emax)), (0, True))
+    return Piecewise((sigma0 * mb * F(x, y), (E >= Emin) & (E <= Emax)), (0, True))
 
 
-def main(create_table: bool = False):
-    path = Path(__file__).parent.parent / "db" / "jaff.db"
+def main():
     verner_data = Path(__file__).parent.parent / "data" / "xsecs" / "verner_1996.csv"
     df = pd.read_csv(verner_data, sep=r"\s+", index_col=0)
     rows = [
         {
-            "Ion": index,
+            "reaction": f"{ion}__{'_'.join(sorted([f'{ion}+', 'e-']))}",
             "Z": row["Z"],
             "N": row["N"],
             "xsecs": srepr(
@@ -54,25 +55,19 @@ def main(create_table: bool = False):
                 )
             ),
         }
-        for index, row in df.iterrows()
+        for ion, row in df.iterrows()
     ]
-    xsecs_df = pd.DataFrame(rows).set_index("Ion")
+    del df
+    xsecs_df = pd.DataFrame(rows).set_index("reaction")
+    table_name: str = "verner_cross_sections"
 
-    with Db(path) as db:
-        # table = db.table("verner_cross_sections")
-        # table.delete()
-        # print(db.get_tables())
-        table = (
-            db.table_from_dataframe("verner_cross_sections", xsecs_df)
-            if create_table
-            else db.table("verner_cross_sections")
-        )
+    with JaffDb() as jdb:
+        table = jdb.table_from_dataframe(table_name, xsecs_df)
+        logger = JaffLogger().get_logger()
+        logger.info(f"'{table_name}' table created in {jdb.db_path}\n")
+
         print(pd.DataFrame(table.all_rows()))
-        # print(
-        #     db.connection.execute("PRAGMA index_list(verner_cross_sections);").fetchall()
-        # )
 
 
 if __name__ == "__main__":
-    # main(create_table=True)
     main()

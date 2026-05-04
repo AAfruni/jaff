@@ -3,6 +3,8 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
+from typing import NotRequired, TypedDict
 
 import h5py
 import numpy as np
@@ -16,14 +18,15 @@ from sympy import (
     parse_expr,
     srepr,
     symbols,
-    sympify,
 )
-from sympy.core.function import UndefinedFunction
+from sympy.core.function import AppliedUndef, UndefinedFunction
 from tqdm import tqdm
 
+from .auxilary_file_parser import AuxilaryFunctionParser, FunctionsDict
+from .core.logger import JaffLogger
 from .drivers.sqlite import JaffDb
+from .errors.parser import ParserError
 from .fastlog import fast_log2, inverse_fast_log2
-from .function_parser import parse_funcfile
 from .parsers import (
     f90_convert,
     parse_kida,
@@ -33,8 +36,32 @@ from .parsers import (
     parse_udfa,
 )
 from .photochemistry import Photochemistry
+from .radiation import Radiation
 from .reaction import Reaction
 from .species import Species
+
+NetworkProps = TypedDict(
+    "NetworkProps",
+    {
+        "fname": str,
+        "errors": NotRequired[bool],
+        "label": NotRequired[str],
+        "funcfile": NotRequired[str],
+        "replace_nH": NotRequired[bool],
+        "rad_bands": NotRequired[list],
+        "rad_powerlaw_index": NotRequired[int | float],
+        "rad_energy_density": NotRequired[bool],
+        "c": NotRequired[float],
+    },
+)
+
+ElementProps = TypedDict(
+    "ElementProps",
+    {
+        "name": str,
+        "mass": float,
+    },
+)
 
 
 class Network:
@@ -49,12 +76,13 @@ class Network:
         rad_bands=[],
         rad_powerlaw_index: int | float = 0,
         rad_energy_density: bool = False,
+        c: float = 2.99792458e10,  # Speed of light in cgs unit
     ):
+        self.logger = JaffLogger().get_logger()
         self.motd()
 
         # Get the path to the data file relative to this module
-        data_path = os.path.join(os.path.dirname(__file__), "data", "atom_mass.dat")
-        self.mass_dict = self.load_mass_dict(data_path)
+        self.mass_dict: dict[str, ElementProps] = {}
         self.species = []
         self.species_dict = {}
         self.reactions_dict = {}
@@ -64,14 +92,23 @@ class Network:
         self.dEdt_other = parse_expr("0")
         self.file_name = fname
         self.label = label if label else os.path.basename(fname).split(".")[0]
+        self.radiation: Radiation | None = (
+            Radiation(rad_bands, rad_powerlaw_index, rad_energy_density, c)
+            if rad_bands
+            else None
+        )
+        self.dRad_dt_extra = parse_expr("0")
 
-        print("Loading network from %s" % fname)
-        print("Network label = %s" % self.label)
+        self.logger.info(f"Loading network from {fname}")
+        self.logger.info(f"Network label: {self.label}")
 
+        self.load_mass_dict()
         self.photochemistry = Photochemistry()
 
         self.load_network(
-            fname, funcfile, replace_nH, rad_bands, rad_powerlaw_index, rad_energy_density
+            fname,
+            funcfile,
+            replace_nH,
         )
 
         self.check_sink_sources(errors)
@@ -82,7 +119,7 @@ class Network:
         self.generate_reactions_dict()
         self.generate_reaction_matrices()
 
-        print("All done!")
+        print("\nAll done!\n")
 
     # ****************
     @staticmethod
@@ -96,23 +133,19 @@ class Network:
                 if x.lower().startswith("f") and x.strip().isalpha()
             ]
             fword = np.random.choice(words)
-        except:
+        except (FileNotFoundError, PermissionError, OSError, ValueError):
             fword = "Fancy"
-        print("Welcome to JAFF: Just Another %s Format!" % fword.title())
+
+        print(f"\nWelcome to JAFF: Just Another {fword.title()} Format!\n")
 
     # ****************
-    @staticmethod
-    def load_mass_dict(fname):
-        mass_dict = {}
-        for row in open(fname):
-            srow = row.strip()
-            if srow == "":
-                continue
-            if srow[0] == "#":
-                continue
-            rr = srow.split()
-            mass_dict[rr[0]] = float(rr[1])
-        return mass_dict
+    def load_mass_dict(self) -> None:
+        with JaffDb() as jdb:
+            rows = jdb.table("atomic_masses").all_rows()
+
+        self.mass_dict = {}
+        for row in rows:
+            self.mass_dict[row["element"]] = {"mass": row["mass"], "name": row["name"]}
 
     # ****************
     def load_network(
@@ -120,9 +153,6 @@ class Network:
         fname,
         funcfile,
         replace_nH,
-        rad_bands,
-        rad_powerlaw_index,
-        rad_energy_density,
     ):
         default_species = []  # ["dummy", "CR", "CRP", "Photon"]
         self.species = [
@@ -190,7 +220,7 @@ class Network:
         n_photo = 0
 
         # loop through the lines and parse them
-        for srow in tqdm(lines):
+        for srow in tqdm(lines, desc=f"Parsing {self.label}", unit=" lines"):
             # -------------------- PRIZMO --------------------
             # check for PRIZMO variables
             if srow.startswith("VARIABLES{"):
@@ -205,15 +235,15 @@ class Network:
             # store variables as a single string, it will be processed later
             # format will be var1=value1;var2=value2;...
             if in_variables:
-                print("PRIZMO variable detected: %s" % srow)
+                self.logger.info(f"PRIZMO variable detected: {srow}")
                 srow = srow.replace(" ", "").strip().lower()
                 srow = f90_convert(srow)
                 var, val = srow.split("=")
                 try:
                     variables_sympy.append((var, parse_expr(val, evaluate=False)))
                 except Exception as e:
-                    print(
-                        "WARNING: could not parse variable (%s), using string instead" % e
+                    self.logger.warning(
+                        f"Could not parse variable ({e}), using string instead"
                     )
                     variables_sympy.append((var, val.strip()))
                 continue
@@ -221,21 +251,21 @@ class Network:
             # -------------------- KROME --------------------
             # check for krome format
             if srow.startswith("@format:"):
-                print("KROME format detected: %s" % srow)
+                self.logger.info(f"KROME format detected: {srow}")
                 krome_format = srow.strip()
                 continue
 
             # check for KROME variables
             if srow.startswith("@var:"):
-                print("KROME variable detected: %s" % srow)
+                self.logger.info(f"KROME variable detected: {srow}")
                 srow = srow.replace("@var:", "").lower().strip()
                 srow = f90_convert(srow)
                 var, val = srow.split("=")
                 try:
                     variables_sympy.append((var, parse_expr(val, evaluate=False)))
                 except Exception as e:
-                    print(
-                        "WARNING: could not parse variable (%s), using string instead" % e
+                    self.logger.warning(
+                        f"Could not parse variable ({e}), using string instead"
                     )
                     variables_sympy.append((var, val.strip()))
                 continue
@@ -251,14 +281,14 @@ class Network:
                     rr, pp, tmin, tmax, rate = parse_prizmo(srow)
                 elif ":" in srow:
                     rr, pp, tmin, tmax, rate = parse_udfa(srow)
-                elif srow.count(",") > 3 and not ",NAN," in srow:
+                elif srow.count(",") > 3 and ",NAN," not in srow:
                     rr, pp, tmin, tmax, rate = parse_krome(srow, krome_format)
                 elif ",NAN," in srow:
                     rr, pp, tmin, tmax, rate = parse_uclchem(srow)
                 else:
                     rr, pp, tmin, tmax, rate = parse_kida(srow)
             except (ValueError, IndexError) as e:
-                print(f"WARNING: Skipping invalid line: {srow[:50]}... ({e})")
+                self.logger.warning(f"Skipping invalid line: {srow[:50]}... ({e})")
                 continue
 
             # use lowercase for rate
@@ -276,7 +306,7 @@ class Network:
                     photo_args = [arg.strip() for arg in args_str.split(",")]
                     if len(photo_args) < 2:
                         photo_args.append("1e99")
-                    f = Function("photorates")
+                    f: UndefinedFunction = Function("photorates")  # type: ignore
                     rate = f(n_photo, photo_args[0], photo_args[1])
                     n_photo += 1
                 else:
@@ -284,7 +314,7 @@ class Network:
                     photo_args = rate.split(",")
                     if len(photo_args) < 3:
                         photo_args.append(1e99)
-                    f = Function("photorates")
+                    f: UndefinedFunction = Function("photorates")  # type: ignore
                     rate = f(n_photo, photo_args[1], photo_args[2])
                     n_photo += 1
             else:
@@ -301,19 +331,17 @@ class Network:
             # note: reverse order to allow for nested variable replacement
             for vv in variables_sympy[::-1]:
                 var, val = vv
-                if type(val) is str:
-                    print(
-                        "WARNING: variable %s not replaced because it is a string, not a sympy expression"
-                        % var
+                if isinstance(val, str):
+                    self.logger.warning(
+                        f"Variable {var} not replaced because it is a string, not a sympy expression"
                     )
                 else:
-                    if type(rate) is not str:
-                        rate = rate.subs(symbols(var), val)
+                    rate = rate.subs(symbols(var), val)
 
             if tmin is not None and tmin > 0:
-                rate = rate.subs(symbols("tgas"), "max(tgas, %f)" % tmin)
+                rate = rate.subs(symbols("tgas"), f"max(tgas, {tmin})")
             if tmax is not None and tmax > 0:
-                rate = rate.subs(symbols("tgas"), "min(tgas, %f)" % tmax)
+                rate = rate.subs(symbols("tgas"), f"min(tgas, {tmax})")
 
             # Apply KROME replacement rules; note that these may be nested, so we
             # do substitutions repeatedly until none remain
@@ -349,31 +377,19 @@ class Network:
 
             # Apply the replacement rules for custom "ratefucntions",
             # which are functions that directly override rates
-            ratefunc_name = "ratefunction{:d}".format(len(self.reactions))
-            if ratefunc_name in aux_funcs.keys():
-                rate = aux_funcs[ratefunc_name]["def"]
+            chem_rate_func_name = f"chemRate{len(self.reactions)}"
+            aux_chem_rate_present = chem_rate_func_name in aux_funcs
+            if aux_chem_rate_present:
+                rate = aux_funcs[chem_rate_func_name]["def"]
 
-            # Apply the replacement rules for all other custom
-            # functions; do this in a loop until no replacements are
-            # made so that we can fully substitute for nested functions
-            while True:
-                funcs = [
-                    f for f in rate.atoms(Function) if type(f.func) is UndefinedFunction
-                ]  # Grab undefined functions
-                did_replace = False
-                for f in funcs:
-                    if f.name.lower() in aux_funcs.keys():
-                        # Grab function definition and substitute in arguments
-                        fdef = aux_funcs[f.name.lower()]["def"]
-                        for a1, a2 in zip(aux_funcs[f.name.lower()]["args"], f.args):
-                            fdef = fdef.subs(a1, a2)
-                        # Substitute function into rate
-                        rate = rate.subs(f, fdef)
-                        # Flag that we did a replacement
-                        did_replace = True
-                # End if no replacements done
-                if not did_replace:
-                    break
+            # Read auxilary photon addition/consumption rate
+            # which will be weighted and added to the moment 0
+            # equation in each band
+            deltaRad = parse_expr("0")
+            delta_rad_func_name = f"deltaRad{len(self.reactions)}".lower()
+            aux_rad_extra_rate = delta_rad_func_name in aux_funcs
+            if aux_rad_extra_rate:
+                deltaRad = aux_funcs[delta_rad_func_name]["def"]
 
             # convert reactants and products to Species objects
             for s in rr + pp:
@@ -391,49 +407,38 @@ class Network:
             # If there is a deltaE function describing change in
             # chemical energy associated with this reaction, add
             # an appropriate term to the dEdt_chem for this network.
-            deltaE_name = "deltaE{:d}".format(len(self.reactions))
+            deltaE_name = f"deltaE{len(self.reactions)}"
             deltaE = parse_expr("0")
             if deltaE_name.lower() in aux_funcs.keys():
                 # deltaE
                 deltaE = aux_funcs[deltaE_name.lower()]["def"]
 
-                # Apply the replacement rules for all custom
-                # functions in dEdt
-                while True:
-                    funcs = [
-                        f
-                        for f in deltaE.atoms(Function)
-                        if type(f.func) is UndefinedFunction
-                    ]  # Grab undefined functions
-                    did_replace = False
-                    for f in funcs:
-                        if f.name.lower() in aux_funcs.keys():
-                            # Grab function definition and substitute in arguments
-                            fdef = aux_funcs[f.name.lower()]["def"]
-                            for a1, a2 in zip(aux_funcs[f.name.lower()]["args"], f.args):
-                                fdef = fdef.subs(a1, a2)
-                            # Substitute function into dEdt
-                            deltaE = deltaE.subs(f, fdef)
-                            # Flag that we did a replacement
-                            did_replace = True
-                    # End if no replacements done
-                    if not did_replace:
-                        break
-
-            if is_photoreaction and rad_bands:
-                # Get photo rates
-                rate = (
-                    self.get_prate_from_db(
-                        rr, rad_bands, rad_powerlaw_index, rad_energy_density
-                    )
-                    or rate
-                )
+            for func in rate.atoms(AppliedUndef):
+                func_name = func.name.lower()
+                if func_name in aux_funcs:
+                    func_def = aux_funcs[func_name]["def"]
+                    func_args = aux_funcs[func_name]["args"]
+                    arg_map = dict(zip(func_args, func.args))
+                    rate = rate.subs(func, func_def.subs(arg_map))
 
             # create a Reaction object
-            rea = Reaction(rr, pp, rate, tmin, tmax, deltaE, srow)
+            rea = Reaction(rr, pp, rate, tmin, tmax, deltaE, deltaRad, srow)
+
+            if is_photoreaction and self.radiation is not None:
+                if not aux_chem_rate_present:
+                    self.radiation.set_reaction_rate_coefficient(rea)
+                elif aux_chem_rate_present and aux_rad_extra_rate:
+                    self.radiation.set_custom_rate(rea)
+                else:
+                    raise ParserError(
+                        "If radiation is enabled and a custom rate is supplied\n"
+                        "for a photo reaction, the auxilary deltaRad function is\n"
+                        "necessary to weigh the first moment radiation equations\n"
+                        f"Please add a custom deltaRad function for reaction {len(self.reactions)}"
+                    )
 
             if rea.guess_type() == "photo":
-                rea.xsecs = self.photochemistry.get_xsec(rea)
+                rea.xsecs_dict = self.photochemistry.get_xsec(rea)
 
             # Save to reaction list
             self.reactions.append(rea)
@@ -444,14 +449,15 @@ class Network:
         for rea in self.reactions:
             rea.rate = self.standardize_symbols(rea.rate, replace_nH)
             rea.dE = self.standardize_symbols(rea.dE, replace_nH)
+            rea.dRad_dt = self.standardize_symbols(rea.dRad_dt, replace_nH)
 
             # Append any remaining un-replaced quantities to list
             # of free symbols, removing nden's
             free_symbols_all += [
-                fs for fs in rea.rate.free_symbols if not "nden" in fs.name
+                fs for fs in rea.rate.free_symbols if "nden" not in fs.name
             ]
             free_symbols_all += [
-                fs for fs in rea.dE.free_symbols if not "nden" in fs.name
+                fs for fs in rea.dE.free_symbols if "nden" not in fs.name
             ]
 
         # Generate the chemical dE/dt expression from rates and deltaE's
@@ -461,85 +467,65 @@ class Network:
             for s in r.reactants:
                 dE_dt *= nden[self.species_dict[s.name]]
             self.dEdt_chem += dE_dt
+            self.dRad_dt_extra += r.dRad_dt
         self.dEdt_chem = self.standardize_symbols(self.dEdt_chem, replace_nH)
+        self.dRad_dt_extra = self.standardize_symbols(self.dRad_dt_extra, replace_nH)
+
         free_symbols_all += [
-            fs for fs in self.dEdt_chem.free_symbols if not "nden" in fs.name
+            fs for fs in self.dEdt_chem.free_symbols if "nden" not in fs.name
+        ]
+        free_symbols_all += [
+            fs for fs in self.dRad_dt_extra.free_symbols if "nden" not in fs.name
         ]
 
         # Add chemical and non-chemical heating and cooling rates
-        if "heating_cooling_rate" in aux_funcs.keys():
-            self.dEdt_other = aux_funcs["heating_cooling_rate"]["def"]
-
-            # Apply the replacement rules for all custom
-            # functions in dEdt
-            while True:
-                funcs = [
-                    f
-                    for f in self.dEdt_other.atoms(Function)
-                    if type(f.func) is UndefinedFunction
-                ]  # Grab undefined functions
-                did_replace = False
-                for f in funcs:
-                    if f.name.lower() in aux_funcs.keys():
-                        # Grab function definition and substitute in arguments
-                        fdef = aux_funcs[f.name.lower()]["def"]
-                        for a1, a2 in zip(aux_funcs[f.name.lower()]["args"], f.args):
-                            fdef = fdef.subs(a1, a2)
-                        # Substitute function into dEdt
-                        self.dEdt_other = self.dEdt_other.subs(f, fdef)
-                        # Flag that we did a replacement
-                        did_replace = True
-                # End if no replacements done
-                if not did_replace:
-                    break
+        if "heatingCoolingRate" in aux_funcs.keys():
+            self.dEdt_other = aux_funcs["heatingCoolingRate"]["def"]
 
             # Standardize expression
             self.dEdt_other = self.standardize_symbols(self.dEdt_other, replace_nH)
 
             # Add symbols from dEdt_other to free symbol list
             free_symbols_all += [
-                fs for fs in self.dEdt_other.free_symbols if not "nden" in fs.name
+                fs for fs in self.dEdt_other.free_symbols if "nden" not in fs.name
             ]
 
         # Get unique list of variables names found in all expressions
         free_symbols_all = sorted([x.name for x in list(set(free_symbols_all))])
 
-        print("Variables found:", free_symbols_all)
-        print("Loaded %d reactions" % len(self.reactions))
-        print("Lodaded %d photo-chemistry reactions" % n_photo)
+        self.logger.info(f"Variables found: {', '.join(free_symbols_all)}")
+        self.logger.info(f"Loaded {len(self.reactions)} reactions")
+        self.logger.info(f"Loaded {n_photo} photo-chemistry reactions")
 
         # Issue warning message if undefined functions remain
-        undef_funcs = []
-        interp_funcs = []
+        undef_funcs = set()
+        interp_funcs = set()
         for r in self.reactions:
-            for f in r.rate.atoms(Function):
-                if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
-                    if "interp" in f.name:
-                        interp_funcs.append(f.name)
-                    else:
-                        undef_funcs.append(f.name)
-        if self.dEdt_chem is not None:
-            for f in self.dEdt_chem.atoms(Function):
-                if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
-                    if "interp" in f.name:
-                        interp_funcs.append(f.name)
-                    else:
-                        undef_funcs.append(f.name)
-        if self.dEdt_other is not None:
-            for f in self.dEdt_other.atoms(Function):
-                if type(f.func) is UndefinedFunction and f.name not in undef_funcs:
-                    if "interp" in f.name:
-                        interp_funcs.append(f.name)
-                    else:
-                        undef_funcs.append(f.name)
+            self.__detect_undefined_functions(r.rate, undef_funcs, interp_funcs)
+        self.__detect_undefined_functions(self.dEdt_chem, undef_funcs, interp_funcs)
+        self.__detect_undefined_functions(self.dEdt_other, undef_funcs, interp_funcs)
+        self.__detect_undefined_functions(self.dRad_dt_extra, undef_funcs, interp_funcs)
 
-        if len(interp_funcs) > 0:
-            print("Found the following interpolation functions: ", interp_funcs)
-        if len(undef_funcs) > 0:
-            print("WARNING: found undefined functions ", undef_funcs)
+        if interp_funcs:
+            self.logger.info(
+                f"Found the following interpolation functions: {', '.join(interp_funcs)}"
+            )
+        if undef_funcs:
+            self.logger.warning(f"Found undefined functions {', '.join(undef_funcs)}")
+
+    @staticmethod
+    def __detect_undefined_functions(
+        expr: sympy.Expr, undef_funcs: set, interp_funcs: set
+    ) -> None:
+        for f in expr.atoms(Function):
+            if isinstance(f.func, UndefinedFunction):
+                if "interp" in f.func.__name__:
+                    interp_funcs.add(f.func.__name__)
+                    continue
+                undef_funcs.add(f.func.__name__)
 
     # ****************
-    def read_aux_funcs(self, funcfile):
+    def read_aux_funcs(self, funcfile: str | Path | None):
         """
         Read the auxiliary function file
 
@@ -565,17 +551,37 @@ class Network:
         Raises:
             IOError, if the file does not exist or cannot be parsed
         """
-
         if funcfile == "none":
-            return dict()  # Empty dict
-        elif funcfile is None:
-            try:
-                return parse_funcfile(self.file_name + "_functions")
-            except IOError:
-                # Silently return empty dict if no function file is present
-                return dict()
-        else:
-            return parse_funcfile(funcfile)
+            return {}
+
+        if funcfile is None:
+            funcfiles_list = [
+                Path(f"{self.file_name}.jfunc"),
+                Path(self.file_name).with_suffix(".jfunc"),
+            ]
+
+            funcfile_exists: bool = False
+            for f in funcfiles_list:
+                if f.exists():
+                    funcfile = f
+                    funcfile_exists = True
+                    break
+
+            if not funcfile_exists:
+                return {}
+
+        assert funcfile is not None
+
+        if isinstance(funcfile, str):
+            funcfile = Path(funcfile)
+
+        if not funcfile.exists():
+            raise FileNotFoundError(f"Auxilary functions file not found: {funcfile}")
+
+        with AuxilaryFunctionParser(funcfile) as afp:
+            func_dict: FunctionsDict = afp.get_dict()
+
+        return func_dict
 
     # ****************
     def to_jaff_file(self, filename):
@@ -678,7 +684,7 @@ class Network:
                     "tmax": r.tmax,
                     "dE": encode_maybe_sympy(r.dE),
                     "original_string": r.original_string,
-                    "xsecs": jsonable(r.xsecs),
+                    "xsecs": jsonable(r.xsecs_dict),
                 }
                 for r in self.reactions
             ],
@@ -736,8 +742,7 @@ class Network:
         net.photochemistry = Photochemistry()
 
         # Load default mass dict (same source as __init__).
-        data_path = os.path.join(os.path.dirname(__file__), "data", "atom_mass.dat")
-        net.mass_dict = cls.load_mass_dict(data_path)
+        net.load_mass_dict()
 
         species_payload = payload.get("species") or []
         if not isinstance(species_payload, list):
@@ -838,11 +843,12 @@ class Network:
                 rate=rate,
                 tmin=tmin,
                 tmax=tmax,
-                dE=dE if dE is not None else parse_expr("0"),
+                dRad_dt=parse_expr("0.0"),  # Support for drad_dt will be added soon
+                dE=dE or parse_expr("0"),
                 original_string=original_string,
                 errors=False,
             )
-            rea.xsecs = xsecs
+            rea.xsecs_dict = xsecs
             net.reactions.append(rea)
 
         # Recompute derived structures.
@@ -868,7 +874,7 @@ class Network:
 
     # ****************
     def compare_reactions(self, other, verbosity=1):
-        print('Comparing networks "%s" and "%s"...' % (self.label, other.label))
+        print(f'Comparing networks "{self.label}" and "{other.label}"...')
 
         net1 = [x.serialized for x in self.reactions]
         net2 = [x.serialized for x in other.reactions]
@@ -882,8 +888,7 @@ class Network:
                 nmissing2 += 1
                 if verbosity > 0:
                     print(
-                        'Found in "%s" but not in "%s": %s'
-                        % (self.label, other.label, rea.get_verbatim())
+                        f'Found in "{self.label}" but not in "{other.label}": {rea.get_verbatim()}'
                     )
 
             elif ref in net2 and ref not in net1:
@@ -891,23 +896,20 @@ class Network:
                 nmissing1 += 1
                 if verbosity > 0:
                     print(
-                        'Found in "%s" but not in "%s": %s'
-                        % (other.label, self.label, rea.get_verbatim())
+                        f'Found in "{other.label}" but not in "{self.label}": {rea.get_verbatim()}'
                     )
             else:
                 if verbosity > 1:
-                    print("Found in both networks: %s" % ref)
+                    print(f"Found in both networks: {ref}")
                 nsame += 1
 
-        print("Found %d reactions in common" % nsame)
-        print('%d reactions missing in "%s"' % (nmissing1, self.label))
-        print('%d reactions missing in "%s"' % (nmissing2, other.label))
+        print(f"Found {nsame} reactions in common")
+        print(f'{nmissing1} reactions missing in "{self.label}"')
+        print(f'{nmissing2} reactions missing in "{other.label}"')
 
     # ****************
     def compare_species(self, other, verbosity=1):
-        print(
-            'Comparing species in networks "%s" and "%s"...' % (self.label, other.label)
-        )
+        print(f'Comparing species in networks "{self.label}" and "{other.label}"...')
 
         net1 = [x.serialized for x in self.species]
         net2 = [x.serialized for x in other.species]
@@ -917,14 +919,13 @@ class Network:
         only_in_other = []
         nmissing1 = 0
         nmissing2 = 0
-        for ref in np.unique(net1 + net2):
+        for ref in np.unique(np.array(net1 + net2)):
             if ref in net1 and ref not in net2:
                 sp = self.get_species_by_serialized(ref)
                 nmissing2 += 1
                 if verbosity > 1:
                     print(
-                        'Found in "%s" but not in "%s": %s'
-                        % (self.label, other.label, sp.name)
+                        f'Found in "{self.label}" but not in "{other.label}": {sp.name}'
                     )
                 only_in_self.append(sp)
 
@@ -933,29 +934,23 @@ class Network:
                 nmissing1 += 1
                 if verbosity > 1:
                     print(
-                        'Found in "%s" but not in "%s": %s'
-                        % (other.label, self.label, sp.name)
+                        f'Found in "{other.label}" but not in "{self.label}": {sp.name}'
                     )
                 only_in_other.append(sp)
             else:
                 sp = self.get_species_by_serialized(ref)
                 if verbosity > 1:
-                    print("Found in both networks: %s" % ref)
+                    print(f"Found in both networks: {ref}")
                 same_species.append(sp)
 
         print(
-            "Found %d species in common:" % len(same_species),
-            sorted([x.name for x in same_species]),
+            f"Found {len(same_species)} species in common: {sorted([x.name for x in same_species])}"
         )
         print(
-            'Found %d species in "%s" but not in "%s":'
-            % (len(only_in_self), self.label, other.label),
-            sorted([x.name for x in only_in_self]),
+            f'Found {len(only_in_self)} species in "{self.label}" but not in "{other.label}": {sorted([x.name for x in only_in_self])}'
         )
         print(
-            'Found %d species in "%s" but not in "%s":'
-            % (len(only_in_other), other.label, self.label),
-            sorted([x.name for x in only_in_other]),
+            f'Found {len(only_in_other)} species in "{other.label}" but not in "{self.label}": {sorted([x.name for x in only_in_other])}'
         )
 
     # ****************
@@ -973,16 +968,16 @@ class Network:
             if s.name == "dummy":
                 continue
             if s.name not in pps:
-                print("Sink: ", s.name)
+                self.logger.info(f"Sink: {s.name}")
                 has_sink = True
             if s.name not in rrs:
-                print("Source: ", s.name)
+                self.logger.info(f"Source: {s.name}")
                 has_source = True
 
         if has_sink:
-            print("WARNING: sink detected")
+            self.logger.warning("Sink detected")
         if has_source:
-            print("WARNING: source detected")
+            self.logger.warning("Source detected")
 
         if (has_sink or has_source) and errors:
             sys.exit()
@@ -1008,12 +1003,12 @@ class Network:
 
                 if not electron_recombination_found:
                     has_errors = True
-                    print("WARNING: electron recombination not found for %s" % sp.name)
+                    self.logger.warning(f"Electron recombination not found for {sp.name}")
                 # if not grain_recombination_found:
                 #     print("WARNING: grain recombination not found for %s" % sp.name)
 
         if has_errors and errors:
-            print("WARNING: recombination errors found")
+            self.logger.error("Recombination errors found")
             sys.exit(1)
 
     # ****************
@@ -1022,11 +1017,11 @@ class Network:
         for i, sp1 in enumerate(self.species):
             for sp2 in self.species[i + 1 :]:
                 if sp1.exploded == sp2.exploded:
-                    print("WARNING: isomer detected: %s %s" % (sp1.name, sp2.name))
+                    self.logger.warning(f"Isomer detected: {sp1.name} {sp2.name}")
                     has_errors = True
 
         if has_errors and errors:
-            print("WARNING: isomer errors found")
+            self.logger.error("ERROR: isomer errors found")
             sys.exit(1)
 
     # ****************
@@ -1041,11 +1036,13 @@ class Network:
                         continue
                     if rea1.guess_type() != rea2.guess_type():
                         continue
-                    print("WARNING: duplicate reaction found: %s" % rea1.get_verbatim())
+                    self.logger.warning(
+                        f"Duplicate reaction found: {rea1.get_verbatim()}"
+                    )
                     has_duplicates = True
 
         if has_duplicates and errors:
-            print("ERROR: duplicate reactions found")
+            self.logger.error("Duplicate reactions found")
             sys.exit(1)
 
     # ****************
@@ -1216,11 +1213,11 @@ class Network:
         for sp in self.species:
             if sp.name == name:
                 if dollars:
-                    return "$" + sp.latex + "$"
+                    return f"${sp.latex}$"
                 else:
                     return sp.latex
 
-        print("ERROR: species %s latex not found" % name)
+        self.logger.error(f"Species {name} latex not found")
         sys.exit(1)
 
     # *****************
@@ -1228,7 +1225,7 @@ class Network:
         for sp in self.species:
             if sp.serialized == serialized:
                 return sp
-        print("ERROR: species with serialized %s not found" % serialized)
+        self.logger.error(f"Species with serialized {serialized} not found")
         sys.exit(1)
 
     # *****************
@@ -1236,7 +1233,7 @@ class Network:
         for sp in self.reactions:
             if sp.serialized == serialized:
                 return sp
-        print("ERROR: reaction with serialized %s not found" % serialized)
+        self.logger.error(f"Reaction with serialized {serialized} not found")
         sys.exit(1)
 
     # *****************
@@ -1245,7 +1242,7 @@ class Network:
             if rea.get_verbatim() == verbatim:
                 if rtype is None or rea.guess_type() == rtype:
                     return rea
-        print("ERROR: reaction with verbatim '%s' not found" % verbatim)
+        self.logger.error(f"Reaction with verbatim '{verbatim}' not found")
         sys.exit(1)
 
     # *****************
@@ -1447,13 +1444,9 @@ class Network:
                 # Print output if verbose
                 if verbose:
                     idx_max = np.unravel_index(np.nanargmax(rel_err), rel_err.shape)
-                    print(
-                        "nTemp = {:d}, max_err = {:f} in reaction {:s} at T = {:e}".format(
-                            nTemp,
-                            max_err,
-                            self.reactions[idx_max[0]].get_verbatim(),
-                            temp[idx_max[1]],
-                        )
+                    self.logger.info(
+                        f"nTemp = {nTemp}, max_err = {max_err} in reaction "
+                        f"{self.reactions[idx_max[0]].get_verbatim()} at T = {temp[idx_max[1]]}"
                     )
 
                 # Check for convergence
@@ -1466,22 +1459,22 @@ class Network:
     def get_sfluxes(self) -> list[sympy.Expr]:
         nspec = len(self.species)
         nreact = len(self.reactions)
-        fluxes = [sympy.Integer(0)] * nreact
+        fluxes: list[sympy.Expr] = [sympy.Integer(0) for _ in range(nreact)]
         nden_matrix = MatrixSymbol("nden", nspec, 1)
 
         for i, reaction in enumerate(self.reactions):
             flux = reaction.rate
             for reactant in reaction.reactants:
-                flux *= nden_matrix[self.species_dict[str(reactant)], 0]
+                flux *= nden_matrix[self.species_dict[str(reactant)]]
 
             fluxes[i] = flux
 
         return fluxes
 
-    def get_sodes(self) -> list[sympy.Expr]:
+    def get_sodes(self) -> list[sympy.Basic]:
         nspec = len(self.species)
         fluxes = self.get_sfluxes()
-        sodes = [sympy.Integer(0)] * nspec
+        sodes: list[sympy.Basic] = [sympy.Integer(0) for _ in range(nspec)]
 
         for i, reaction in enumerate(self.reactions):
             for rr in reaction.reactants:
@@ -1503,80 +1496,65 @@ class Network:
 
         return sodes
 
-    @staticmethod
-    def get_prate_from_db(
-        reactants: list[Species],
-        rad_bands: list[int | float | str | sympy.Basic],
-        rad_powerlaw_index: int | float,
-        rad_energy_density: bool,
-    ) -> sympy.Basic | None:
-        if rad_energy_density:
-            pl_index: float = float(rad_powerlaw_index) - 1.0
-            if pl_index == -1.0:
-                if isinstance(rad_bands[0], (float, int)) and float(rad_bands[0]) == 0.0:
-                    raise RuntimeError(
-                        f"The integral for average energy will diverge since the radiation band starts from rad_bands[0]: {rad_bands[0]}\n"
-                        "Please try a non-zero value"
-                    )
-                if rad_bands[-1] == sympy.oo:
-                    raise RuntimeError(
-                        f'The integral for average energy will diverge since the radiation band ends at rad_bands[{len(rad_bands) - 1}]: "inf"\n'
-                        "Please try a non-infinite value or change the power_law_index"
-                    )
-            elif pl_index + 1.0 > 0.0:
-                if rad_bands[-1] == sympy.oo:
-                    raise RuntimeError(
-                        f'The integral for average energy will diverge since the radiation band ends at rad_bands[{len(rad_bands) - 1}]: "inf"\n'
-                        "Please try a non-infinite value or change the power_law_index"
-                    )
-            elif pl_index + 1.0 < 0.0:
-                if isinstance(rad_bands[0], (float, int)) and float(rad_bands[0]) == 0.0:
-                    raise RuntimeError(
-                        f"The integral for average energy will diverge since the radiation band starts from rad_bands[0]: {rad_bands[0]}\n"
-                        "Please try a non-zero value"
-                    )
+    def get_sradodes(self, order: int = 0) -> list[sympy.Expr]:
+        # Check if radiation is enabled
+        if self.radiation is None:
+            raise RuntimeError(
+                "No radiation bands found. Radiation odes cannot be generated"
+            )
 
-        with JaffDb() as jdb:
-            table = jdb.table("verner_cross_sections")
-            xsec_present = False
-            rows = []
-            for reactant in reactants:
-                rows = table.rows(conditions=f"Ion = '{str(reactant)}'")
-                if rows:
-                    xsec_present = True
-                    break
+        # Raise if order is not supported
+        if order not in [0, 1, 2, 3]:
+            raise ValueError("Invalid order: Supported orders are 0, 1, 2, 3")
 
-            if not xsec_present:
-                return None
+        rad_groups = self.radiation.groups
+        nden = sympy.MatrixSymbol("nden", len(self.species), 1)
 
-        if "inf" in rad_bands:
-            inf_index = rad_bands.index("inf")
-            rad_bands[inf_index] = sympy.oo
-
-        E = sympy.Symbol("E")
-        n_profile = E ** (rad_powerlaw_index - 2)
-        rate = sympy.Float(0.0)
-        xsec = sympy.sympify(rows[0]["xsecs"])
-        c = 2.99792458e10  # Speed of light in cgs unit
-
-        den = MatrixSymbol(
-            "radeden" if rad_energy_density else "photden", len(rad_bands) - 1, 1
+        den = sympy.MatrixSymbol(
+            "radeden" if self.radiation.energy_density else "photden",
+            self.radiation.nbands,
+            1,
+        )
+        rflux = sympy.MatrixSymbol("rflux", self.radiation.nbands, 1)
+        flux_map = {
+            den[sympy.Idx(i)]: rflux[sympy.Idx(i)] for i in range(self.radiation.nbands)
+        }
+        grate, gflux = (
+            [sympy.Float(0.0)] * self.radiation.nbands,
+            [sympy.Float(0.0)] * self.radiation.nbands,
         )
 
-        for i, lower in enumerate(rad_bands[:-1]):
-            upper = rad_bands[i + 1]
-            n_tot = sympy.Integral(n_profile, (E, lower, upper)).evalf()
-            xsec_avg = sympy.Integral(xsec * n_profile, (E, lower, upper)).evalf() / n_tot
+        for group in rad_groups:
+            group_rate: sympy.Basic = sympy.Float(0.0)
+            group_dRad_dt_extra = sympy.Float(0.0)
+            for reaction, props in group.props.items():
+                rrate = props["k"]
+                group_dRad_dt_extra += props["delta_rad"]
+                for reactant in reaction.reactants:
+                    rrate *= nden[sympy.Idx(self.species_dict[str(reactant)])]
 
-            if rad_energy_density:
-                e_avg = sympy.Integral(E * n_profile, (E, lower, upper)).evalf() / n_tot
-                rate += den[Idx(i)] * xsec_avg / e_avg
+                group_rate -= rrate
 
-                continue
+            # Flux
+            flux = group_rate.xreplace(flux_map)
+            # dRad_dt_extra assumed to be in units of energy density rate
+            group_rate += group_dRad_dt_extra / (
+                1 if self.radiation.energy_density else (group.eavg or 1)
+            )
 
-            rate += den[Idx(i)] * xsec_avg
+            grate[group.index] = group_rate
+            gflux[group.index] = flux
 
-        return c * rate
+        radodes: list[sympy.Expr] = [
+            sympy.Float(0.0) for _ in range(2 * self.radiation.nbands)
+        ]
+
+        for i, (rate, flux) in enumerate(zip(grate, gflux)):
+            ei, fi = self.radiation.ordered_index(i, order)
+            radodes[ei] = rate
+            radodes[fi] = flux
+
+        return radodes
 
     # *****************
     def write_table(
@@ -1796,7 +1774,7 @@ class Network:
             )
 
             # Create data set holding the coefficient table
-            dset = grp.create_dataset("data", data=coef)
+            grp.create_dataset("data", data=coef)
 
             # Close file
             fp.close()
