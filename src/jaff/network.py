@@ -377,7 +377,7 @@ class Network:
 
             # Apply the replacement rules for custom "ratefucntions",
             # which are functions that directly override rates
-            chem_rate_func_name = f"chemRate{len(self.reactions)}"
+            chem_rate_func_name = f"chemrate{len(self.reactions)}"
             aux_chem_rate_present = chem_rate_func_name in aux_funcs
             if aux_chem_rate_present:
                 rate = aux_funcs[chem_rate_func_name]["def"]
@@ -407,7 +407,7 @@ class Network:
             # If there is a deltaE function describing change in
             # chemical energy associated with this reaction, add
             # an appropriate term to the dEdt_chem for this network.
-            deltaE_name = f"deltaE{len(self.reactions)}"
+            deltaE_name = f"deltae{len(self.reactions)}"
             deltaE = parse_expr("0")
             if deltaE_name.lower() in aux_funcs.keys():
                 # deltaE
@@ -479,8 +479,8 @@ class Network:
         ]
 
         # Add chemical and non-chemical heating and cooling rates
-        if "heatingCoolingRate" in aux_funcs.keys():
-            self.dEdt_other = aux_funcs["heatingCoolingRate"]["def"]
+        if "heatingcoolingrate" in aux_funcs.keys():
+            self.dEdt_other = aux_funcs["heatingcoolingrate"]["def"]
 
             # Standardize expression
             self.dEdt_other = self.standardize_symbols(self.dEdt_other, replace_nH)

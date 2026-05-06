@@ -22,6 +22,7 @@ def main(
         def_prefix="const amrex::Real ",
         brac_format="()",
         ode_var="ydot",
+        specific_eint=True,
     )
     jac = cg.get_jacobian_str(
         idx_offset=1,

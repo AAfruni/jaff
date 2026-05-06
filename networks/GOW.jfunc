@@ -48,7 +48,7 @@
 @var kB = 1.380649e-16             # Boltzmann's constant
 @var c_light = 2.99892458e10       # Speed of light
 @var sigma_SB = 5.670374419e-5     # Stefan-Boltmzann constant
-@var a_R = 4 * sigma_SB / c        # Radiation constant
+@var a_R = 4 * sigma_SB / c_light  # Radiation constant
 @var c_a = c_light * a_R           # c * a_R
 @var amu = 1.66054e-24             # 1 amu in gram
 @var eV = 1.602177e-12             # 1 eV in erg
@@ -1012,10 +1012,10 @@
     neff = n_H2 + 1.75 * tgas**(1/4) * n_H0 + 680.1/tgas**(1/4) * n_e
 
     # Table lookup of the four functions entering the fit
-    L0 = L0_CO_interp1d(tgas)
-    LLTE = LLTE_CO_interp2d(tgas, LVG_param)
-    nHalf = nHalf_CO_interp2d(tgas, LVG_param)
-    alpha = alpha_CO_interp2d(tgas, LVG_param)
+    L0 = L0_CO_interp1d#(tgas)
+    LLTE = LLTE_CO_interp2d#(tgas, LVG_param)
+    nHalf = nHalf_CO_interp2d#(tgas, LVG_param)
+    alpha = alpha_CO_interp2d#(tgas, LVG_param)
 
     # Combine results
     inv_LCO = 1/L0 + neff/LLTE + 1/L0 * (neff/nHalf)**alpha * (1 - nHalf*L0/LLTE)
@@ -1049,7 +1049,7 @@
     # function of n_H and tgas, which the wrapping code will have to
     # provide in the form of either a numerical solver or a table
     # interpolation of the solution.
-    psi_coll = PsiGD_coll_interp2d(n_H, tgas)
+    psi_coll = PsiGD_coll_interp2d#(n_H, tgas)
     cool_rate_coll = psi_coll * d2g / d2g_solar
 
     # Get dust heating rate from CMB and ISRF
@@ -1112,6 +1112,7 @@
     # -- H2 collisional dissociation
     # On the other hand, recombination of e- onto grains is included here,
     # because we do not explicitly treat this reaction
+    
 
     return heating_grainPE(chi, av, d2g, tgas, n_H, n_e) \
         - cooling_LyA(n_H0, n_e, tgas) \
